@@ -1,0 +1,12 @@
+{
+  "name": "@tokenslim/opencode",
+  "version": "1.0.0",
+  "description": "TokenSlim OpenCode plugin — compress prompts automatically. Saves 30-50% tokens.",
+  "main": "plugin.js",
+  "scripts": {},
+  "dependencies": {
+    "@tokenslim/core": "^1.0.0"
+  },
+  "keywords": ["opencode", "prompt", "compression", "plugin"],
+  "license": "MIT"
+}

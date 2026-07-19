@@ -1,0 +1,101 @@
+{
+  "name": "tokenslim",
+  "displayName": "TokenSlim — AI Prompt Compressor",
+  "description": "⚡ Compress AI prompts instantly. Save tokens, save money. Supports Claude, GPT, Gemini & all coding agents.",
+  "version": "1.0.0",
+  "publisher": "aroonpasca01dot",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/aroonpasca01dot/TokenSlim"
+  },
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Other"
+  ],
+  "keywords": [
+    "prompt",
+    "compressor",
+    "token",
+    "ai",
+    "claude",
+    "gpt",
+    "continue-dev",
+    "opencode",
+    "antigravity"
+  ],
+  "icon": "icon.png",
+  "activationEvents": [
+    "onCommand:tokenslim.compress",
+    "onCommand:tokenslim.compressSelection",
+    "onCommand:tokenslim.analyze",
+    "onCommand:tokenslim.showStats"
+  ],
+  "main": "./extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "tokenslim.compress",
+        "title": "TokenSlim: Compress Prompt",
+        "icon": "$(compress)"
+      },
+      {
+        "command": "tokenslim.compressSelection",
+        "title": "TokenSlim: Compress Selection",
+        "icon": "$(symbol-namespace)"
+      },
+      {
+        "command": "tokenslim.analyze",
+        "title": "TokenSlim: Analyze Prompt",
+        "icon": "$(graph)"
+      },
+      {
+        "command": "tokenslim.showStats",
+        "title": "TokenSlim: Show Session Stats",
+        "icon": "$(pie-chart)"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "tokenslim.compressSelection",
+        "key": "ctrl+shift+c",
+        "when": "editorTextFocus"
+      },
+      {
+        "command": "tokenslim.analyze",
+        "key": "ctrl+shift+a",
+        "when": "editorTextFocus"
+      }
+    ],
+    "configuration": {
+      "title": "TokenSlim",
+      "properties": {
+        "tokenslim.level": {
+          "type": "number",
+          "default": 2,
+          "enum": [1, 2, 3, 4],
+          "enumDescriptions": [
+            "Mild (~20% savings) — Safe, preserves readability",
+            "Normal (~40% savings) — Balanced, recommended",
+            "Aggressive (~60% savings) — Max for long prompts",
+            "Extreme (~80% savings) — Drastic shortening"
+          ],
+          "description": "Default compression level"
+        },
+        "tokenslim.autoCompress": {
+          "type": "boolean",
+          "default": false,
+          "description": "Auto-compress clipboard text when copying"
+        },
+        "tokenslim.showNotifications": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show notification with compression stats"
+        }
+      }
+    }
+  }
+}

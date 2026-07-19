@@ -1,0 +1,12 @@
+{
+  "name": "@tokenslim/antigravity",
+  "version": "1.0.0",
+  "description": "TokenSlim Antigravity plugin — compress prompts in Antigravity coding agent.",
+  "main": "plugin.js",
+  "scripts": {},
+  "dependencies": {
+    "@tokenslim/core": "^1.0.0"
+  },
+  "keywords": ["antigravity", "prompt", "compression", "plugin"],
+  "license": "MIT"
+}

@@ -1,0 +1,598 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TokenSlim — AI Prompt Compressor Demo</title>
+<style>
+  /* ─── Font ────────────────────────────────────────────── */
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
+
+  /* ─── CSS Variables ───────────────────────────────────── */
+  :root {
+    --bg: #0f0f14;
+    --bg-card: #1a1a24;
+    --bg-hover: #23233b;
+    --border: #2a2a3e;
+    --text: #e8e8f0;
+    --text-dim: #8888a0;
+    --text-bright: #ffffff;
+    --accent: #6c5ce7;
+    --accent-glow: rgba(108, 92, 231, 0.3);
+    --green: #00d68f;
+    --green-bg: rgba(0, 214, 143, 0.1);
+    --red: #ff4757;
+    --yellow: #ffa502;
+    --radius: 12px;
+  }
+
+  /* ─── Reset ────────────────────────────────────────────── */
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Inter', -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    line-height: 1.6;
+  }
+
+  /* ─── Layout ───────────────────────────────────────────── */
+  .container { max-width: 1000px; margin: 0 auto; padding: 40px 20px; }
+  
+  /* ─── Header ────────────────────────────────────────────── */
+  .header {
+    text-align: center;
+    margin-bottom: 48px;
+  }
+  .header .logo {
+    font-size: 48px;
+    font-weight: 800;
+    background: linear-gradient(135deg, var(--accent), #a29bfe);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .header .subtitle {
+    font-size: 16px;
+    color: var(--text-dim);
+    margin-top: 8px;
+  }
+  .header .badges {
+    margin-top: 16px;
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+  .badge {
+    display: inline-block;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+  }
+  .badge.green { background: var(--green-bg); border-color: var(--green); color: var(--green); }
+  .badge.acc { border-color: var(--accent); color: var(--accent); }
+
+  /* ─── Cards ────────────────────────────────────────────── */
+  .card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 24px;
+    margin-bottom: 20px;
+    transition: border-color 0.3s, box-shadow 0.3s;
+  }
+  .card:hover {
+    border-color: var(--accent);
+    box-shadow: 0 0 20px var(--accent-glow);
+  }
+  .card-title {
+    font-size: 14px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-dim);
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  /* ─── Textarea ──────────────────────────────────────────── */
+  textarea {
+    width: 100%;
+    min-height: 140px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    padding: 16px;
+    resize: vertical;
+    transition: border-color 0.3s;
+    line-height: 1.5;
+  }
+  textarea:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 12px var(--accent-glow);
+  }
+  textarea::placeholder { color: var(--text-dim); opacity: 0.5; }
+
+  /* ─── Buttons ───────────────────────────────────────────── */
+  .btn-group {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 12px;
+  }
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 8px;
+    font-family: 'Inter', sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .btn-primary {
+    background: var(--accent);
+    color: white;
+  }
+  .btn-primary:hover { background: #7c6ff0; transform: translateY(-1px); }
+  .btn-secondary {
+    background: var(--bg-hover);
+    color: var(--text);
+    border: 1px solid var(--border);
+  }
+  .btn-secondary:hover { background: var(--border); }
+  .btn-green {
+    background: var(--green);
+    color: #000;
+  }
+  .btn-green:hover { background: #00e89d; transform: translateY(-1px); }
+  .btn-sm {
+    padding: 6px 12px;
+    font-size: 12px;
+  }
+
+  /* ─── Stats Bar ─────────────────────────────────────────── */
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 12px;
+    margin: 16px 0;
+  }
+  .stat {
+    text-align: center;
+    padding: 12px;
+    background: var(--bg);
+    border-radius: 8px;
+    border: 1px solid var(--border);
+  }
+  .stat-value {
+    font-size: 24px;
+    font-weight: 800;
+    display: block;
+  }
+  .stat-value.green { color: var(--green); }
+  .stat-value.acc { color: var(--accent); }
+  .stat-label {
+    font-size: 11px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-top: 4px;
+  }
+
+  /* ─── Progress Bar ──────────────────────────────────────── */
+  .progress-bar {
+    width: 100%;
+    height: 8px;
+    background: var(--bg);
+    border-radius: 4px;
+    overflow: hidden;
+    margin-top: 8px;
+  }
+  .progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--green), #00e89d);
+    border-radius: 4px;
+    transition: width 0.5s ease;
+  }
+
+  /* ─── Compression Level Selector ────────────────────────── */
+  .level-selector {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .level-btn {
+    padding: 8px 16px;
+    border: 2px solid var(--border);
+    border-radius: 8px;
+    background: transparent;
+    color: var(--text);
+    font-family: 'Inter', sans-serif;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-align: center;
+  }
+  .level-btn:hover { border-color: var(--accent); }
+  .level-btn.active {
+    border-color: var(--accent);
+    background: var(--accent-glow);
+    box-shadow: 0 0 12px var(--accent-glow);
+  }
+  .level-btn .level-label { font-weight: 600; display: block; }
+  .level-btn .level-desc { font-size: 11px; color: var(--text-dim); }
+
+  /* ─── Result ────────────────────────────────────────────── */
+  .result-box {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+    min-height: 80px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    white-space: pre-wrap;
+    word-break: break-word;
+    line-height: 1.5;
+  }
+  .result-box.dim { color: var(--text-dim); font-family: 'Inter', sans-serif; }
+
+  /* ─── Analysis Table ────────────────────────────────────── */
+  .analysis-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 10px;
+    margin-top: 12px;
+  }
+  .analysis-item {
+    padding: 12px;
+    background: var(--bg);
+    border-radius: 8px;
+    border: 1px solid var(--border);
+  }
+  .analysis-item .level-name { font-weight: 700; font-size: 14px; }
+  .analysis-item .level-save { font-size: 20px; font-weight: 800; margin-top: 4px; }
+  .analysis-item.recommended {
+    border-color: var(--green);
+    box-shadow: 0 0 12px rgba(0, 214, 143, 0.2);
+  }
+
+  /* ─── Copy Flash ────────────────────────────────────────── */
+  .copy-flash {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    padding: 12px 20px;
+    background: var(--green);
+    color: #000;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 14px;
+    opacity: 0;
+    transition: opacity 0.3s;
+    pointer-events: none;
+    z-index: 100;
+  }
+  .copy-flash.show { opacity: 1; }
+
+  /* ─── Samples ───────────────────────────────────────────── */
+  .sample-group {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 12px;
+  }
+  .sample-chip {
+    padding: 6px 12px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .sample-chip:hover {
+    border-color: var(--accent);
+    background: var(--accent-glow);
+  }
+
+  /* ─── Footer ────────────────────────────────────────────── */
+  .footer {
+    text-align: center;
+    padding: 40px 0;
+    color: var(--text-dim);
+    font-size: 13px;
+    border-top: 1px solid var(--border);
+    margin-top: 40px;
+  }
+  .footer a { color: var(--accent); text-decoration: none; }
+  .footer a:hover { text-decoration: underline; }
+
+  /* ─── Responsive ────────────────────────────────────────── */
+  @media (max-width: 600px) {
+    .container { padding: 20px 12px; }
+    .header .logo { font-size: 32px; }
+    .stats { grid-template-columns: repeat(2, 1fr); }
+    .analysis-grid { grid-template-columns: repeat(2, 1fr); }
+    .level-selector { flex-direction: column; }
+  }
+</style>
+</head>
+<body>
+
+<div class="copy-flash" id="copyFlash">📋 Copied!</div>
+
+<div class="container">
+
+  <!-- ─── Header ────────────────────────────────────────────── -->
+  <div class="header">
+    <div class="logo">⚡ TokenSlim</div>
+    <div class="subtitle">AI Prompt Compressor — Save tokens, save money</div>
+    <div class="badges">
+      <span class="badge green">✨ Save up to 60%</span>
+      <span class="badge acc">🔄 VSCode + CLI + All Agents</span>
+      <span class="badge">📦 v1.0.0</span>
+    </div>
+  </div>
+
+  <!-- ─── Input ─────────────────────────────────────────────── -->
+  <div class="card">
+    <div class="card-title">📝 Input Prompt</div>
+    
+    <div class="sample-group">
+      <span class="sample-chip" data-sample="coding">💻 Coding Request</span>
+      <span class="sample-chip" data-sample="bug">🐛 Bug Report</span>
+      <span class="sample-chip" data-sample="chat">💬 Verbose Chat</span>
+      <span class="sample-chip" data-sample="agent">🤖 Agent Context</span>
+    </div>
+
+    <textarea id="inputText" placeholder="Paste your prompt here...">I would like you to generate a Python function that takes a list of numbers and returns the sum of all even numbers in that list. Please make sure to handle edge cases like empty lists gracefully. Also please add proper documentation with docstrings and type hints. This function should be efficient and well-tested.</textarea>
+
+    <div class="btn-group">
+      <button class="btn btn-primary" onclick="compress()">⚡ Compress</button>
+      <button class="btn btn-secondary" onclick="clearAll()">🗑️ Clear</button>
+      <button class="btn btn-secondary" onclick="copyInput()">📋 Copy Input</button>
+    </div>
+  </div>
+
+  <!-- ─── Compression Level ─────────────────────────────────── -->
+  <div class="card">
+    <div class="card-title">🎯 Compression Level</div>
+    <div class="level-selector" id="levelSelector">
+      <button class="level-btn" data-level="1" onclick="setLevel(1)">
+        <span class="level-label">Mild</span>
+        <span class="level-desc">~20% savings</span>
+      </button>
+      <button class="level-btn active" data-level="2" onclick="setLevel(2)">
+        <span class="level-label">Normal ⭐</span>
+        <span class="level-desc">~40% savings</span>
+      </button>
+      <button class="level-btn" data-level="3" onclick="setLevel(3)">
+        <span class="level-label">Aggressive</span>
+        <span class="level-desc">~60% savings</span>
+      </button>
+      <button class="level-btn" data-level="4" onclick="setLevel(4)">
+        <span class="level-label">Extreme</span>
+        <span class="level-desc">~80% savings</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- ─── Result ────────────────────────────────────────────── -->
+  <div class="card">
+    <div class="card-title">✅ Compressed Output</div>
+    <div class="result-box" id="outputResult">Click ⚡ Compress to see your savings!</div>
+    
+    <div class="btn-group">
+      <button class="btn btn-green" onclick="copyResult()">📋 Copy Result</button>
+      <button class="btn btn-secondary" onclick="compress()">🔄 Recompress</button>
+    </div>
+  </div>
+
+  <!-- ─── Stats ─────────────────────────────────────────────── -->
+  <div class="card" id="statsCard" style="display:none;">
+    <div class="card-title">📊 Token Savings</div>
+    <div class="stats" id="statsGrid"></div>
+    <div class="progress-bar" id="progressBar"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
+    <div style="margin-top:8px;font-size:12px;color:var(--text-dim);text-align:right;" id="progressLabel"></div>
+  </div>
+
+  <!-- ─── Analysis ──────────────────────────────────────────── -->
+  <div class="card" id="analysisCard" style="display:none;">
+    <div class="card-title">📈 All-Levels Analysis</div>
+    <div class="analysis-grid" id="analysisGrid"></div>
+  </div>
+
+  <!-- ─── About ─────────────────────────────────────────────── -->
+  <div class="card" style="border-color:var(--accent);">
+    <div class="card-title">💡 What is TokenSlim?</div>
+    <p style="font-size:14px;line-height:1.7;color:var(--text-dim);">
+      <strong style="color:var(--text);">TokenSlim</strong> is an AI prompt compressor that removes filler words, 
+      minifies instructions, and preserves important context. It works with 
+      <strong style="color:var(--text);">Claude, GPT, Gemini</strong> and all coding agents 
+      (<strong style="color:var(--text);">Continue.dev, OpenCode, Antigravity, VSCode</strong>).
+    </p>
+    <p style="font-size:14px;color:var(--text-dim);margin-top:8px;">
+      💰 <strong>Every token saved = money saved.</strong> Long prompts waste 30-60% on filler.
+      TokenSlim cuts the fat automatically.
+    </p>
+  </div>
+
+  <!-- ─── Footer ────────────────────────────────────────────── -->
+  <div class="footer">
+    ⚡ TokenSlim v1.0.0 — Open Source<br>
+    <a href="https://github.com/aroonpasca01dot/TokenSlim" target="_blank">GitHub</a> &middot;
+    MIT License
+  </div>
+
+</div>
+
+<script src="../packages/core/index.js"></script>
+<script>
+// ─── TokenSlim Engine ───────────────────────────────────────
+
+const core = new TokenSlimCore();
+let currentLevel = 2;
+
+// ─── Samples ─────────────────────────────────────────────────
+
+const SAMPLES = {
+  coding: `I would like you to generate a Python function that takes a list of numbers and returns the sum of all even numbers in that list. Please make sure to handle edge cases like empty lists gracefully. Also please add proper documentation with docstrings and type hints. This function should be efficient and well-tested.`,
+  
+  bug: `Hi there, I am encountering an issue with the login functionality in my application. Whenever I try to submit the form with valid credentials, it just refreshes the page and nothing happens. I have tried clearing my cache and cookies but that did not help at all. Could you please take a look at this and let me know what the problem might be? Thank you very much for your help.`,
+
+  chat: `I would really appreciate it if you could please take a look at this code and tell me what you think about it. Basically, I am trying to implement a sorting algorithm but I think maybe there is something wrong with it. Could you please help me debug this issue? Thank you so much for your time and assistance.`,
+
+  agent: `As an AI assistant, I am here to help you with your coding tasks. Please provide me with the details of what you would like me to implement and I will do my best to generate the optimal solution for you. I am a large language model trained on a diverse dataset and I can help with a wide variety of programming languages, frameworks, and tools.`
+};
+
+// ─── Functions ───────────────────────────────────────────────
+
+function setLevel(level) {
+  currentLevel = level;
+  document.querySelectorAll('.level-btn').forEach(b => {
+    b.classList.toggle('active', parseInt(b.dataset.level) === level);
+  });
+}
+
+function compress() {
+  const input = document.getElementById('inputText').value.trim();
+  if (!input) {
+    document.getElementById('outputResult').textContent = '⚠️ Please enter a prompt first.';
+    return;
+  }
+
+  const result = core.compress(input, currentLevel);
+  
+  // Show compressed output
+  document.getElementById('outputResult').textContent = result.compressed;
+  
+  // Show stats
+  showStats(result);
+  
+  // Show analysis
+  showAnalysis(input);
+}
+
+function showStats(result) {
+  const card = document.getElementById('statsCard');
+  const grid = document.getElementById('statsGrid');
+  
+  card.style.display = 'block';
+  
+  grid.innerHTML = '';
+  
+  const stats = [
+    { label: 'Original', value: result.stats.original, unit: 'tokens', cls: '' },
+    { label: 'Compressed', value: result.stats.compressed, unit: 'tokens', cls: 'acc' },
+    { label: 'Saved', value: result.stats.saved, unit: 'tokens', cls: 'green' },
+    { label: 'Efficiency', value: result.stats.percent, unit: '%', cls: 'green' }
+  ];
+  
+  stats.forEach(s => {
+    const div = document.createElement('div');
+    div.className = 'stat';
+    div.innerHTML = `
+      <span class="stat-value ${s.cls}">${s.value}</span>
+      <span class="stat-label">${s.label}</span>
+    `;
+    grid.appendChild(div);
+  });
+
+  // Progress bar
+  const fill = document.getElementById('progressFill');
+  const label = document.getElementById('progressLabel');
+  fill.style.width = Math.min(result.stats.percent, 100) + '%';
+  label.textContent = `${result.stats.percent}% token savings`;
+}
+
+function showAnalysis(input) {
+  const card = document.getElementById('analysisCard');
+  const grid = document.getElementById('analysisGrid');
+  
+  card.style.display = 'block';
+  grid.innerHTML = '';
+  
+  const analysis = core.analyze(input);
+  const levels = ['Mild', 'Normal', 'Aggressive', 'Extreme'];
+  
+  analysis.levels.forEach((l, i) => {
+    const div = document.createElement('div');
+    div.className = 'analysis-item' + (analysis.recommendation === l.level ? ' recommended' : '');
+    const pctColor = l.percent > 50 ? 'var(--green)' : l.percent > 25 ? '#ffa502' : 'var(--red)';
+    div.innerHTML = `
+      <div class="level-name" style="color:${l.level === currentLevel ? 'var(--accent)' : 'var(--text)'}">
+        ${levels[i]} ${l.level === analysis.recommendation ? '✅' : ''}
+      </div>
+      <div style="font-size:13px;color:var(--text-dim);margin-top:2px;">
+        ${l.original} → ${l.compressed} tokens
+      </div>
+      <div class="level-save" style="color:${pctColor}">
+        ${l.percent}%
+      </div>
+    `;
+    grid.appendChild(div);
+  });
+}
+
+function copyInput() {
+  const text = document.getElementById('inputText').value;
+  if (!text) return;
+  copyToClipboard(text);
+}
+
+function copyResult() {
+  const text = document.getElementById('outputResult').textContent;
+  if (!text || text.startsWith('Click') || text.startsWith('⚠️')) return;
+  copyToClipboard(text);
+}
+
+function copyToClipboard(text) {
+  navigator.clipboard.writeText(text).then(() => {
+    const flash = document.getElementById('copyFlash');
+    flash.classList.add('show');
+    setTimeout(() => flash.classList.remove('show'), 1500);
+  });
+}
+
+function clearAll() {
+  document.getElementById('inputText').value = '';
+  document.getElementById('outputResult').textContent = 'Click ⚡ Compress to see your savings!';
+  document.getElementById('statsCard').style.display = 'none';
+  document.getElementById('analysisCard').style.display = 'none';
+}
+
+// ─── Sample chips ────────────────────────────────────────────
+
+document.querySelectorAll('.sample-chip').forEach(chip => {
+  chip.addEventListener('click', () => {
+    const sample = SAMPLES[chip.dataset.sample];
+    if (sample) {
+      document.getElementById('inputText').value = sample;
+    }
+  });
+});
+
+// ─── Auto-run demo on load ──────────────────────────────────
+
+window.addEventListener('load', () => {
+  setTimeout(compress, 500);
+});
+</script>
+
+</body>
+</html>

@@ -1,0 +1,19 @@
+{
+  "name": "@tokenslim/cli",
+  "version": "1.0.0",
+  "description": "TokenSlim CLI — Compress AI prompts from terminal. Pipe in or paste text, save tokens.",
+  "main": "index.js",
+  "bin": {
+    "tokenslim": "./index.js",
+    "tslim": "./index.js"
+  },
+  "preferGlobal": true,
+  "scripts": {
+    "test": "node test.js"
+  },
+  "dependencies": {
+    "@tokenslim/core": "1.0.0"
+  },
+  "keywords": ["prompt", "compression", "token", "cli", "ai"],
+  "license": "MIT"
+}

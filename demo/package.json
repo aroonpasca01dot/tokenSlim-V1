@@ -1,0 +1,9 @@
+{
+  "name": "tokenslim-demo",
+  "version": "1.0.0",
+  "description": "TokenSlim Demo Page — Interactive before/after prompt compression",
+  "main": "index.html",
+  "scripts": {},
+  "keywords": ["demo", "tokenslim", "prompt", "compression"],
+  "license": "MIT"
+}

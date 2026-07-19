@@ -1,0 +1,37 @@
+{
+  "name": "tokenslim",
+  "version": "1.0.0",
+  "description": "⚡ AI Prompt Compressor — Hemat token AI hingga 70%. Support VSCode, Continue.dev, OpenCode, Antigravity, CLI.",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces",
+    "test": "npm run test --workspaces",
+    "demo": "cd demo && npx live-server --port=3000"
+  },
+  "keywords": [
+    "ai",
+    "prompt",
+    "compressor",
+    "token-saver",
+    "vscode-extension",
+    "continue-dev",
+    "opencode",
+    "antigravity",
+    "claude",
+    "gpt",
+    "coding-agent"
+  ],
+  "author": "aroonpasca01dot",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/aroonpasca01dot/TokenSlim.git"
+  },
+  "bugs": {
+    "url": "https://github.com/aroonpasca01dot/TokenSlim/issues"
+  },
+  "homepage": "https://github.com/aroonpasca01dot/TokenSlim"
+}
