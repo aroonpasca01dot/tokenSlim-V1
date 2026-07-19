@@ -1,6 +1,6 @@
 # ⚡ TokenSlim
 
-### AI Prompt Compressor — Save up to 60% on token costs
+### AI Prompt Compressor — Save 20-55% on tokens on token costs
 
 TokenSlim removes filler words, minifies instructions, and preserves important context. Works with **Claude, GPT, Gemini, Continue.dev, OpenCode, Antigravity, VSCode**, and any AI tool.
 
@@ -95,7 +95,7 @@ const compressed = compress(longPrompt);
 |-------|------|---------|----------|
 | 1 | Mild | ~20% | Short prompts, preserving tone |
 | 2 | **Normal** ⭐ | **~40%** | **Daily use (recommended)** |
-| 3 | Aggressive | ~60% | Long prompts, max savings |
+| 3 | Aggressive | ~40-55% | Long prompts, max savings |
 | 4 | Extreme | ~80% | Internal context, budget mode |
 
 ---

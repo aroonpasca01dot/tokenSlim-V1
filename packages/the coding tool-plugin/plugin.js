@@ -1,5 +1,5 @@
 /**
- * TokenSlim — antigravity Plugin
+ * TokenSlim — the coding tool Plugin
  * Automatically compress prompts to save tokens.
  */
 
@@ -14,7 +14,7 @@ let config = {
 };
 
 function compress(text, opts = {}) {
-  if (!config.enabled || !text || text.length < 50) return text;
+  if (!config.enabled || !text || text.length < 30) return text;
   const level = opts.level || config.level;
   try {
     const result = core.compress(text, level);
