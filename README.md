@@ -31,7 +31,13 @@ Open `demo/index.html` in any browser (or use the [hosted demo](https://aroonpas
 
 ### CLI
 
-> Not yet published to npm — run it straight from the repo:
+```bash
+# From npm (once published — see PUBLISHING.md):
+npm install -g @tokenslim/cli
+tokenslim "Your long AI prompt here"
+```
+
+Or run it straight from the repo:
 
 ```bash
 git clone https://github.com/aroonpasca01dot/tokenSlim-V1.git

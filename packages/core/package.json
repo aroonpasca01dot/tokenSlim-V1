@@ -14,5 +14,25 @@
     "ai",
     "minify"
   ],
-  "license": "MIT"
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/aroonpasca01dot/tokenSlim-V1.git"
+  },
+  "homepage": "https://github.com/aroonpasca01dot/tokenSlim-V1#readme",
+  "bugs": {
+    "url": "https://github.com/aroonpasca01dot/tokenSlim-V1/issues"
+  },
+  "author": "aroonpasca01dot",
+  "files": [
+    "index.js",
+    "index.d.ts",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=14"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
 }
