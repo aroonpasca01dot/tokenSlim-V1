@@ -1,0 +1,66 @@
+# Publishes @tokenslim/core and @tokenslim/cli to npm.
+#
+# One-time setup (see PUBLISHING.md):
+#   1. Create an npm account and the "tokenslim" organization (free, public).
+#   2. Create an npm Granular Access Token with read/write on both packages
+#      (or an Automation token).
+#   3. Add it as a repository secret named NPM_TOKEN
+#      (Settings → Secrets and variables → Actions → New repository secret).
+#
+# Then run this workflow from the Actions tab (workflow_dispatch), or
+# publish a GitHub Release to trigger it automatically.
+
+name: Publish to npm
+
+on:
+  workflow_dispatch:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: https://registry.npmjs.org
+
+      - name: Run tests
+        run: npm test
+
+      - name: Check demo is in sync with core
+        run: node scripts/build-demo.js --check
+
+      - name: Publish @tokenslim/core
+        working-directory: packages/core
+        run: |
+          NAME=$(node -p "require('./package.json').name")
+          VERSION=$(node -p "require('./package.json').version")
+          if npm view "$NAME@$VERSION" version >/dev/null 2>&1; then
+            echo "$NAME@$VERSION already published — skipping."
+          else
+            npm publish --access public
+          fi
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Publish @tokenslim/cli
+        working-directory: packages/cli
+        run: |
+          NAME=$(node -p "require('./package.json').name")
+          VERSION=$(node -p "require('./package.json').version")
+          if npm view "$NAME@$VERSION" version >/dev/null 2>&1; then
+            echo "$NAME@$VERSION already published — skipping."
+          else
+            npm publish --access public
+          fi
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

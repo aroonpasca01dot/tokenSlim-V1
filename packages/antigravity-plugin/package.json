@@ -13,5 +13,6 @@
     "compression",
     "plugin"
   ],
-  "license": "MIT"
+  "license": "MIT",
+  "private": true
 }

@@ -10,5 +10,6 @@
     "prompt",
     "compression"
   ],
-  "license": "MIT"
+  "license": "MIT",
+  "private": true
 }
