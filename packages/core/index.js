@@ -1,5 +1,5 @@
 /**
- * TokenSlim Core v1.0.0
+ * TokenSlim Core v1.1.0
  * =======================
  * AI Prompt Compressor — Universal Module
  * Works in: Browser (script tag) + Node.js (require)
@@ -14,14 +14,14 @@
  *   const core = new TokenSlimCore();
  *
  * ─── Compression Pipeline ────────────────────────────────────
- * Phase 1: Extract + preserve code blocks & inline code
- * Phase 2: Remove filler words + pleasantries
- * Phase 3: Apply instruction shorthand (implement → impl:, etc.)
- * Phase 4: Remove redundant phrases + common patterns
- * Phase 5: Word-set removal based on level
- * Phase 6: Orphan single-char word removal (aggressive+)
- * Phase 7: Restore preserved code blocks
- * Phase 8: Whitespace cleanup
+ * Phase 1: Extract + protect code blocks, inline code, URLs, emails
+ * Phase 2: Remove redundant phrases (level 2+)
+ * Phase 3: Apply shorthand substitutions (safe tier 2+, tight tier 3+)
+ * Phase 4: Filler-word removal per line (level-based word sets)
+ * Phase 5: Extra pattern cleanup (level 3+) / extreme strip (level 4)
+ * Phase 6: Whitespace + punctuation cleanup (newline-preserving)
+ * Phase 7: Restore protected segments
+ * Phase 8: Safety net — never return empty / never make it worse
  * ──────────────────────────────────────────────────────────────
  */
 
@@ -37,177 +37,177 @@
 
 "use strict";
 
-// ─── Shorthand Map ───────────────────────────────────────────
-const SHORTHAND_MAP = {
-  'implement': 'impl:',
-  'generate': 'gen:',
-  'create': 'make',
-  'function': 'fn',
-  'application': 'app',
-  'functionality': 'fn',
-  'functionalities': 'fn',
-  'functionality': 'fn',
-  'functionality': 'fn',
+var VERSION = '1.1.0';
+
+// ─── Shorthand Maps ──────────────────────────────────────────
+// Only standard abbreviations that stay readable to an LLM and do
+// not expand the BPE token count (e.g. "hlpr" or "→" often cost
+// MORE tokens than the original word, so they are excluded).
+
+// Safe tier — applied at level 2+. Long words with universally
+// understood short forms.
+var SHORTHAND_SAFE = {
   'configuration': 'config',
-  'configure': 'config',
+  'configurations': 'configs',
+  'documentation': 'docs',
+  'repository': 'repo',
+  'repositories': 'repos',
   'authentication': 'auth',
   'authorization': 'auth',
-  'authenticate': 'auth',
-  'documentation': 'docs',
-  'document': 'doc',
-  'repository': 'repo',
-  'initialize': 'init',
   'initialization': 'init',
+  'initialize': 'init',
   'implementation': 'impl',
-  'return': '→',
-  'returns': '→',
-  'argument': 'arg',
-  'arguments': 'args',
+  'application': 'app',
+  'applications': 'apps',
+  'environment': 'env',
+  'environments': 'envs',
+  'information': 'info',
   'parameter': 'param',
   'parameters': 'params',
-  'variable': 'var',
-  'value': 'val',
-  'values': 'vals',
-  'object': 'obj',
-  'string': 'str',
-  'number': 'num',
-  'array': 'arr',
-  'boolean': 'bool',
-  'callback': 'cb',
-  'handler': 'hdlr',
-  'message': 'msg',
-  'error': 'err',
-  'exception': 'exc',
-  'response': 'res',
-  'request': 'req',
-  'database': 'db',
-  'server': 'srv',
-  'client': 'clt',
-  'environment': 'env',
+  'specification': 'spec',
+  'specifications': 'specs',
+  'administrator': 'admin',
+  'directory': 'dir',
+  'directories': 'dirs',
+  'maximum': 'max',
+  'minimum': 'min',
+  'approximately': 'approx',
   'development': 'dev',
   'production': 'prod',
-  'testing': 'test',
-  'utility': 'util',
-  'helper': 'hlpr',
+  'database': 'db',
+  'databases': 'dbs'
+};
+
+// Tight tier — applied at level 3+. Shorter words where the
+// abbreviation is still unambiguous in a coding context.
+var SHORTHAND_TIGHT = {
+  'implement': 'impl',
+  'function': 'fn',
+  'functions': 'fns',
+  'argument': 'arg',
+  'arguments': 'args',
+  'variable': 'var',
+  'variables': 'vars',
+  'object': 'obj',
+  'boolean': 'bool',
+  'callback': 'cb',
+  'message': 'msg',
+  'error': 'err',
+  'response': 'res',
+  'request': 'req',
+  'previous': 'prev',
+  'current': 'curr',
   'property': 'prop',
   'properties': 'props',
   'attribute': 'attr',
-  'information': 'info',
+  'attributes': 'attrs',
   'reference': 'ref',
+  'references': 'refs',
+  'utility': 'util',
+  'utilities': 'utils',
   'identifier': 'id',
-  'identification': 'id',
-  'additional': 'extra',
-  'previous': 'prev',
-  'current': 'curr',
-  'maximum': 'max',
-  'minimum': 'min',
-  'optimization': 'opt',
-  'optimize': 'opt',
-  'optimizations': 'opt',
-  'optimized': 'opt',
+  'identifiers': 'ids',
+  'number': 'num',
+  'string': 'str'
 };
 
+function buildShorthandRule(map) {
+  var keys = Object.keys(map).sort(function (a, b) { return b.length - a.length; });
+  return {
+    re: new RegExp('\\b(?:' + keys.join('|') + ')\\b', 'gi'),
+    map: map
+  };
+}
+
+var SHORTHAND_SAFE_RULE = buildShorthandRule(SHORTHAND_SAFE);
+var SHORTHAND_TIGHT_RULE = buildShorthandRule(SHORTHAND_TIGHT);
+
+// Abbreviations we must keep in the extreme-level short-word sweep.
+var SHORTHAND_VALUES = (function () {
+  var set = {};
+  [SHORTHAND_SAFE, SHORTHAND_TIGHT].forEach(function (m) {
+    Object.keys(m).forEach(function (k) { set[m[k]] = true; });
+  });
+  return set;
+}());
+
 // ─── Filler Words ────────────────────────────────────────────
-const FILLER_WORDS_MILD = new Set([
+// Each level's set is a superset of the previous one.
+
+var FILLERS_MILD_LIST = [
   'basically', 'actually', 'literally', 'honestly', 'essentially',
   'virtually', 'practically', 'frankly', 'truly', 'simply',
-  'just', 'very', 'really', 'quite', 'pretty', 'rather',
-  'totally', 'absolutely', 'completely', 'entirely',
-]);
+  'just', 'very', 'really', 'quite', 'totally', 'absolutely',
+  'completely', 'entirely', 'definitely', 'certainly', 'obviously'
+];
 
-const FILLER_WORDS_NORMAL = new Set([
+var FILLERS_NORMAL_LIST = FILLERS_MILD_LIST.concat([
+  // Pleasantries
   'please', 'thanks', 'thank', 'kindly', 'grateful',
   'appreciate', 'appreciated', 'welcome',
-  'basically', 'actually', 'literally', 'honestly', 'essentially',
-  'virtually', 'practically', 'frankly', 'just', 'very', 'really',
-  'quite', 'pretty', 'rather', 'totally', 'absolutely', 'completely',
-  'entirely', 'simply',
-  
   // Hedging
   'maybe', 'perhaps', 'possibly', 'probably',
   'hopefully', 'ideally', 'potentially',
   'somewhat', 'somehow', 'slightly',
-  'think', 'guess', 'suppose', 'believe',
-  'wondering', 'curious',
-  
-  // Redundant context
-  'basically', 'essentially', 'like',
+  'wondering', 'curious', 'pretty'
 ]);
 
-const FILLER_WORDS_AGGRESSIVE = new Set([
-  'please', 'thanks', 'thank', 'kindly', 'grateful',
-  'appreciate', 'appreciated', 'welcome',
-  'basically', 'actually', 'literally', 'honestly', 'essentially',
-  'virtually', 'practically', 'frankly', 'just', 'very', 'really',
-  'quite', 'pretty', 'rather', 'totally', 'absolutely', 'completely',
-  'entirely', 'simply',
-  'maybe', 'perhaps', 'possibly', 'probably', 'hopefully',
-  'ideally', 'potentially', 'somewhat', 'somehow', 'slightly',
-  'think', 'guess', 'suppose', 'believe', 'wondering', 'curious',
-  
-  // Conjunctions & articles
-  'the', 'a', 'an',
-  'that', 'these', 'those', 'this',
-  
-  // Common fillers
-  'also', 'well', 'then', 'now', 'so',
+var FILLERS_AGGRESSIVE_LIST = FILLERS_NORMAL_LIST.concat([
+  // Articles & demonstratives
+  'the', 'a', 'an', 'that', 'these', 'those', 'this',
+  // Connectors
+  'also', 'well', 'then', 'so', 'rather',
   'thus', 'hence', 'therefore',
   'however', 'moreover', 'furthermore', 'nevertheless',
   'nonetheless', 'meanwhile',
-  
-  // Verbose pronouns
+  // Hedging verbs (risky below this level)
+  'think', 'guess', 'suppose', 'believe', 'like',
+  // Pronouns & modals
   'your', 'you', 'me', 'my', 'our',
   'would', 'could', 'should', 'might', 'shall',
-  
-  // Intensifiers (weak)
-  'good', 'great', 'awesome', 'nice', 'fine',
-  'important', 'necessary', 'relevant',
+  // Weak qualifiers
+  'good', 'great', 'awesome', 'nice', 'fine'
 ]);
 
-const FILLER_WORDS_EXTREME = new Set([
-  'please', 'thanks', 'thank', 'kindly', 'grateful',
-  'appreciate', 'appreciated', 'welcome',
-  'basically', 'actually', 'literally', 'honestly', 'essentially',
-  'virtually', 'practically', 'frankly', 'just', 'very', 'really',
-  'quite', 'pretty', 'rather', 'totally', 'absolutely', 'completely',
-  'entirely', 'simply',
-  'maybe', 'perhaps', 'possibly', 'probably', 'hopefully',
-  'ideally', 'potentially', 'somewhat', 'somehow', 'slightly',
-  'think', 'guess', 'suppose', 'believe', 'wondering', 'curious',
-  'the', 'a', 'an', 'that', 'these', 'those', 'this',
-  'also', 'well', 'then', 'now', 'so',
-  'thus', 'hence', 'therefore', 'however', 'moreover',
-  'furthermore', 'nevertheless', 'nonetheless', 'meanwhile',
-  'your', 'you', 'me', 'my', 'our',
-  'would', 'could', 'should', 'might', 'shall',
-  'good', 'great', 'awesome', 'nice', 'fine',
-  'important', 'necessary', 'relevant',
-  
-  // All verbs of low value
+var FILLERS_EXTREME_LIST = FILLERS_AGGRESSIVE_LIST.concat([
   'i', 'we', 'he', 'she', 'it', 'they', 'them',
   'is', 'are', 'was', 'were', 'be', 'been', 'am',
   'has', 'have', 'had',
   'do', 'does', 'did',
-  'will', 'can', 'may', 'need',
-  'want', 'like', 'need',
-  'get', 'got', 'make', 'made',
+  'will', 'can', 'may', 'need', 'now',
+  'want', 'get', 'got', 'make', 'made',
   'use', 'used', 'using',
   'take', 'took', 'taken',
   'give', 'gave', 'given',
   'put', 'let',
-  'every', 'each', 'any', 'all', 'some', 'both',
+  'every', 'each', 'any', 'all', 'some', 'both'
 ]);
 
-// ─── REDUNDANT PHRASES ───────────────────────────────────────
-const REDUNDANT_PHRASES_LEVEL2 = [
+function toSet(list) {
+  var s = {};
+  for (var i = 0; i < list.length; i++) s[list[i]] = true;
+  return s;
+}
+
+var FILLER_SETS = {
+  1: toSet(FILLERS_MILD_LIST),
+  2: toSet(FILLERS_NORMAL_LIST),
+  3: toSet(FILLERS_AGGRESSIVE_LIST),
+  4: toSet(FILLERS_EXTREME_LIST)
+};
+
+// ─── Redundant Phrases ───────────────────────────────────────
+var REDUNDANT_PHRASES_LEVEL2 = [
   { pattern: /\bas an? (AI assistant|AI|LLM|language model)\b/gi, replacement: '' },
   { pattern: /\bI (?:am|'m) (?:here to|happy to|glad to|ready to|willing to)\b/gi, replacement: '' },
-  { pattern: /\bI would (?:like you to|love you to|appreciate it if you)\b/gi, replacement: '' },
+  { pattern: /\bI would (?:really |greatly |truly )?(?:like you to|love you to|appreciate it if you(?: could)?)\b/gi, replacement: '' },
+  { pattern: /\bit would be (?:great|nice|helpful|awesome) if you\b/gi, replacement: '' },
   { pattern: /\bcould you please\b/gi, replacement: '' },
-  { pattern: /\bplease (make sure|ensure|do)\b/gi, replacement: '' },
+  { pattern: /\bplease (make sure|ensure|do)\b/gi, replacement: '$1' },
   { pattern: /\bthank you (?:for|so much|very much)\b/gi, replacement: '' },
   { pattern: /\byou can (?:also|just|simply)\b/gi, replacement: '' },
-  { pattern: /\bif you (?:want|need|would like)\b/gi, replacement: '' },
+  { pattern: /\bfeel free to\b/gi, replacement: '' },
+  { pattern: /\bgo ahead and\b/gi, replacement: '' },
   { pattern: /\bin (?:order )?to (?:be able to|get started)\b/gi, replacement: 'to' },
   { pattern: /\bdoesn't matter\b/gi, replacement: '' },
   { pattern: /\bno problem\b/gi, replacement: '' },
@@ -219,36 +219,59 @@ const REDUNDANT_PHRASES_LEVEL2 = [
   { pattern: /\bin terms of\b/gi, replacement: 'for' },
   { pattern: /\bdue to the fact that\b/gi, replacement: 'because' },
   { pattern: /\bin order to\b/gi, replacement: 'to' },
-  { pattern: /\ba number of\b/gi, replacement: '' },
   { pattern: /\bthe majority of\b/gi, replacement: 'most' },
   { pattern: /\bis able to\b/gi, replacement: 'can' },
   { pattern: /\bhas the ability to\b/gi, replacement: 'can' },
   { pattern: /\bit is (?:worth noting|important to note) that\b/gi, replacement: '' },
   { pattern: /\bas you (?:can see|may know|might know)\b/gi, replacement: '' },
   { pattern: /\bI'll go ahead and\b/gi, replacement: '' },
-  { pattern: /\bgoing to\b/gi, replacement: 'will' },
-  { pattern: /\bwants to\b/gi, replacement: 'will' },
+  { pattern: /\bas soon as possible\b/gi, replacement: 'ASAP' },
+  { pattern: /\b(?:am|is|are) going to\b/gi, replacement: 'will' }
 ];
 
-const REDUNDANT_PHRASES_AGGRESSIVE = [
-  { pattern: /\bi (?:would (?:like|love|want)|need|wants?)\b/gi, replacement: '' },
-  { pattern: /\bcan you (?:please |)(?:help|assist|check|look at)\b/gi, replacement: '' },
-  { pattern: /\bthis is (?:a |an |)(?:great |good |)(?:example|sample) of\b/gi, replacement: '' },
+var REDUNDANT_PHRASES_AGGRESSIVE = [
+  { pattern: /\bi (?:would (?:like|love|want)|need|want)\b/gi, replacement: '' },
+  { pattern: /\bcan you (?:please )?(?:help|assist|check|look at)\b/gi, replacement: '' },
   { pattern: /\bwhat I (?:am trying|mean|want) (?:to say|to do|is)\b/gi, replacement: '' },
   { pattern: /\bplease (?:take a look|check|review|help)\b/gi, replacement: '' },
   { pattern: /\bI (?:was )?(?:wondering|curious|hoping) (?:if|that)\b/gi, replacement: '' },
   { pattern: /\b(?:let me|allow me to|permit me to)\b/gi, replacement: '' },
   { pattern: /\bI have (?:been working on|been trying|been looking at)\b/gi, replacement: '' },
-  { pattern: /\bas a (?:matter of fact|result)\b/gi, replacement: '' },
+  { pattern: /\bas a matter of fact\b/gi, replacement: '' },
   { pattern: /\bnot only (?:that|this) but\b/gi, replacement: '' },
   { pattern: /\bon the (?:other hand|contrary)\b/gi, replacement: '' },
   { pattern: /\bin (?:order|an effort|an attempt) to\b/gi, replacement: 'to' },
   { pattern: /\bthe (?:aforementioned|abovementioned)\b/gi, replacement: '' },
   { pattern: /\byou (?:should|can|could|might|may) (?:also|then|now)\b/gi, replacement: '' },
-  { pattern: /\bI (?:don't|do not) (?:know|think|understand)\b/gi, replacement: '' },
   { pattern: /\bwith that (?:being said|said|in mind)\b/gi, replacement: '' },
-  { pattern: /\bin this (?:case|scenario|situation|context)\b/gi, replacement: '' },
+  { pattern: /\bin this (?:case|scenario|situation|context)\b/gi, replacement: '' }
 ];
+
+// Extreme-level stop word sweep (level 4 only).
+var EXTREME_WORDS = [
+  'the','a','an','in','on','at','to','for','of','by','with','and','or','but','not','nor',
+  'as','be','is','was','do','it','its','this','that','these','those','are','has','have',
+  'had','did','does','can','may','will','would','could','should','might','shall','all',
+  'any','some','each','every','very','just','also','too','now','then','here','there',
+  'so','yet','if','than','no','yes','oh','ah','well','up','down','out','off','over',
+  'under','into','upon','about','after','before','between','through','during','without',
+  'within','along','among','across','behind','above','below','beneath','beside',
+  'am','been','being','having','doing','getting','making','using','taking','giving',
+  'keep','keeps','keeping','let','lets','letting','need','needs','needed',
+  'you','your','yours','me','my','mine','our','ours','us','we','he','she','they','them',
+  'i','itself','yourself','myself','himself','herself','themselves','ourselves',
+  'good','great','nice','fine','awesome','wonderful','amazing','fantastic','excellent',
+  'perfect','super','best','better','proper','simple','easy','quick','fast',
+  'such','same','own','quite','pretty','rather','really',
+  'want','wants','wanted','get','gets','got','make','makes','made','use','uses',
+  'used','take','takes','took','give','gives','gave','put','puts','find','finds',
+  'found','show','shows','showed','come','comes','came','look','looks','looked',
+  'go','goes','went','know','knows','knew','think','thinks','thought','say','says',
+  'said','tell','tells','told','help','helps','helped',
+  'always','never','often','usually','sometimes','rarely','seldom',
+  'try','tries','tried','provide','provides','provided','allow','allows','allowed'
+];
+var EXTREME_RE = new RegExp('\\b(?:' + EXTREME_WORDS.join('|') + ')\\b', 'gi');
 
 // ─── TokenSlimCore ───────────────────────────────────────────
 function TokenSlimCore() {
@@ -257,37 +280,43 @@ function TokenSlimCore() {
   }
 }
 
+TokenSlimCore.VERSION = VERSION;
+
 TokenSlimCore.prototype.compress = function (text, level) {
   if (text == null || typeof text !== 'string') return { compressed: text, stats: makeStats(0, 0) };
   if (!text.trim()) return { compressed: text, stats: makeStats(0, 0) };
 
-  level = level || 2;
+  level = parseInt(level, 10);
+  if (isNaN(level)) level = 2;
   if (level < 1) level = 1;
   if (level > 4) level = 4;
 
-  const original = this._countTokens(text);
-  const start = performance ? performance.now() : 0;
-
-  // Process
+  var original = this._countTokens(text);
   var result = text;
-  
-  // Phase 1: Extract code blocks (store, replace, restore later)
-  var blocks = [];
-  var inlineCodes = [];
-  
-  // Extract markdown code blocks
-  result = result.replace(/```[\s\S]*?```/g, function (match) {
-    blocks.push(match);
-    return '\x00BLOCK' + (blocks.length - 1) + '\x00';
+
+  // ── Phase 1: Protect code blocks, inline code, URLs, emails ──
+  var preserved = [];
+  function protect(content, trail) {
+    preserved.push(content);
+    return '\x00P' + (preserved.length - 1) + '\x00' + (trail || '');
+  }
+
+  // Fenced code blocks first (may contain inline code / URLs)
+  result = result.replace(/```[\s\S]*?```/g, function (m) { return protect(m); });
+  // Inline code
+  result = result.replace(/`[^`\n]+`/g, function (m) { return protect(m); });
+  // URLs — keep trailing sentence punctuation outside the placeholder
+  result = result.replace(/\bhttps?:\/\/[^\s]+/gi, function (m) {
+    var trail = '';
+    var clean = m.replace(/[.,;:!?)\]]+$/, function (t) { trail = t; return ''; });
+    return protect(clean, trail);
   });
-  
-  // Extract inline code
-  result = result.replace(/`[^`\n]+`/g, function (match) {
-    inlineCodes.push(match);
-    return '\x00INLINE' + (inlineCodes.length - 1) + '\x00';
+  // Emails
+  result = result.replace(/\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/g, function (m) {
+    return protect(m);
   });
-  
-  // Phase 2: Remove redundant phrases
+
+  // ── Phase 2: Remove redundant phrases ──
   var phrases;
   if (level === 1) {
     phrases = [];
@@ -296,164 +325,119 @@ TokenSlimCore.prototype.compress = function (text, level) {
   } else {
     phrases = REDUNDANT_PHRASES_LEVEL2.concat(REDUNDANT_PHRASES_AGGRESSIVE);
   }
-  
   phrases.forEach(function (p) {
     result = result.replace(p.pattern, p.replacement);
   });
-  
-  // Phase 3: Shorthand substitution (no swap: skip words inside placeholders)
-  Object.keys(SHORTHAND_MAP).forEach(function (word) {
-    var levelCutoff = 0;
-    if (level === 1) levelCutoff = 0;
-    else if (level === 2) levelCutoff = 10;
-    else if (level === 3) levelCutoff = 7;
-    else levelCutoff = 5;
-    
-    if (word.length >= levelCutoff) {
-      var escaped = word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      var re = new RegExp('\\b' + escaped + '\\b', 'gi');
-      result = result.replace(re, SHORTHAND_MAP[word]);
-    }
-  });
-  
-  // Phase 4: Word-set removal
-  var fillerSet;
-  if (level === 1) fillerSet = FILLER_WORDS_MILD;
-  else if (level === 2) fillerSet = FILLER_WORDS_NORMAL;
-  else if (level === 3) fillerSet = FILLER_WORDS_AGGRESSIVE;
-  else fillerSet = FILLER_WORDS_EXTREME;
-  
-  var words = result.split(/\s+/);
-  var filtered = [];
-  
-  for (var i = 0; i < words.length; i++) {
-    var w = words[i].replace(/^[^a-zA-Z0-9_#@]+/, '').replace(/[^a-zA-Z0-9_#@]+$/, '').toLowerCase();
-    var isFiller = fillerSet.has(w);
-    
-    // Also remove single-letter tokens (aggressive/extreme)
-    if (level >= 3 && w.length === 1 && /^[a-z]$/.test(w) && !/^[a-zA-Z]$/.test(words[i])) {
-      continue;
-    }
-    
-    // Skip very short fragments that come from partial word deletion (aggressive+)
-    if (level >= 3 && w.length <= 2 && /^[a-zA-Z]+$/.test(w) && words[i].replace(/^[^a-zA-Z0-9_#@]+/, '').length > w.length + 1) {
-      // Keep it — it's likely a punctuation-attached real word
-    }
-    
-    if (!isFiller) {
-      filtered.push(words[i]);
-    }
+
+  // ── Phase 3: Shorthand substitution ──
+  // Level 1 applies none (Mild preserves the original wording).
+  if (level >= 2) {
+    result = result.replace(SHORTHAND_SAFE_RULE.re, function (m) {
+      return SHORTHAND_SAFE_RULE.map[m.toLowerCase()];
+    });
   }
-  
-  result = filtered.join(' ');
-  
-  // Phase 5: Extra cleanup for aggressive+
   if (level >= 3) {
-    // Remove "also please", "please also", "and also" patterns
-    result = result.replace(/\b(?:also please|please also|and also|also and|of the|of a|in the|for the|to the|on the|at the)\b/gi, '');
-    // Remove "make sure to", "be able to", "give you", "provide you"
-    result = result.replace(/\b(?:make sure to|make sure that|be able to|give you|provide you|let you|help you)\b/gi, '');
-    result = result.replace(/\b(?:a lot of|lots of|plenty of|kind of|sort of|type of)\b/gi, '');
-    // Remove "with", "from", "for", "of" when isolated
-    result = result.replace(/\b(?:with|from|for|of|in|on|at|by|to|and|or|but|not|nor)\s+(?:with|from|for|of|in|on|at|by|to|and|or|but|not|nor)\b/g, '');
-    // Multiple spaces
-    result = result.replace(/\s{2,}/g, ' ');
+    result = result.replace(SHORTHAND_TIGHT_RULE.re, function (m) {
+      return SHORTHAND_TIGHT_RULE.map[m.toLowerCase()];
+    });
   }
-  
-  // Level 4 extra — aggressive stripping for extreme savings
-  if (level >= 4) {
-    // Remove ALL short filler / stop words aggressively
-    var extremeWords = [
-      'the','a','an','in','on','at','to','for','of','by','with','and','or','but','not','nor',
-      'as','be','is','was','do','it','its','this','that','these','those','are','has','have',
-      'had','did','does','can','may','will','would','could','should','might','shall','all',
-      'any','some','each','every','very','just','also','too','now','then','here','there',
-      'so','yet','if','than','no','yes','oh','ah','well','up','down','out','off','over',
-      'under','into','upon','about','after','before','between','through','during','without',
-      'within','along','among','across','behind','above','below','beneath','beside',
-      'am','been','being','having','doing','getting','making','using','taking','giving',
-      'keep','keeps','keeping','let','lets','letting','need','needs','needed',
-      'you','your','yours','me','my','mine','our','ours','us','we','he','she','they','them',
-      'i','itself','yourself','myself','himself','herself','themselves','ourselves',
-      'good','great','nice','fine','awesome','wonderful','amazing','fantastic','excellent',
-      'perfect','super','best','better','proper','simple','easy','quick','fast','correct',
-      'right','wrong','bad','old','new','big','small','large','high','low','long','short',
-      'normal','common','usual','special','specific','particular','various','different',
-      'multiple','many','much','little','few','lot','lots','plenty','several',
-      'such','same','own','very','too','quite','pretty','rather','really','just',
-      'want','wants','wanted','get','gets','got','make','makes','made','use','uses',
-      'used','take','takes','took','give','gives','gave','put','puts','find','finds',
-      'found','show','shows','showed','come','comes','came','look','looks','looked',
-      'go','goes','went','know','knows','knew','think','thinks','thought','say','says',
-      'said','tell','tells','told','help','helps','helped',
-      'also','always','never','often','usually','sometimes','rarely','seldom',
-      'try','tries','tried','work','works','worked','run','runs','ran','set','sets',
-      'provide','provides','provided','include','includes','included','contain','contains',
-      'contained','support','supports','supported','allow','allows','allowed'
-    ];
-    var extremeRe = new RegExp('\\b(?:' + extremeWords.join('|') + ')\\b', 'gi');
-    result = result.replace(extremeRe, '');
-    // Start cleanup — remove leading to/a/the
-    result = result.replace(/^(?:to|a|the|in|on|at|for|of|by|with|and|or|so)\s+/i, '');
-    // Remove isolated single-character tokens
-    result = result.replace(/(?:^|\s)[a-zA-Z](?:\s|$)/g, ' ');
-    // Remove orphaned punctuation
-    result = result.replace(/\s+([.,;:!?])/g, '$1');
-    result = result.replace(/([.,;:!?])\s+/g, '$1 ');
-    // Squash
-    result = result.replace(/\s{2,}/g, ' ');
-    // Remove leading/trailing punctuation and whitespace
-    result = result.replace(/^[\s.,;:!?]+/, '');
-    result = result.replace(/[\s.,;:!?]+$/, '');
-    // Second pass: remove any remaining very short words (1-2 chars) that are not code or numbers
-    var finalWords = result.split(/\s+/);
-    var surviving = [];
-    for (var fw = 0; fw < finalWords.length; fw++) {
-      var stripped = finalWords[fw].replace(/^[^a-zA-Z0-9_#@]+/, '').replace(/[^a-zA-Z0-9_#@]+$/, '');
-      // Always keep code-looking tokens, numbers, and long words
-      if (stripped.length >= 3 || /[0-9_#@]/.test(stripped) || stripped === 'fn' || stripped === 'db' || stripped === 'id' || /^[A-Z]/.test(stripped)) {
-        surviving.push(finalWords[fw]);
-      }
-    }
-    result = surviving.join(' ');
-    // Final cleanup
-    result = result.replace(/\s{2,}/g, ' ');
+
+  // ── Phase 4 + 5: Per-line word filtering and level extras ──
+  // Working line-by-line keeps lists, headings and paragraphs intact.
+  var fillerSet = FILLER_SETS[level];
+  var lines = result.split('\n');
+  for (var li = 0; li < lines.length; li++) {
+    lines[li] = compressLine(lines[li], level, fillerSet);
   }
-  
-  // Phase 6: Restore code blocks
-  for (var j = 0; j < blocks.length; j++) {
-    result = result.replace('\x00BLOCK' + j + '\x00', blocks[j]);
+  result = lines.join('\n');
+
+  // ── Phase 6: Whitespace + punctuation cleanup (newline-safe) ──
+  // Blank-line handling: mild/normal keep paragraph breaks, higher
+  // levels collapse them for extra savings.
+  if (level <= 2) {
+    result = result.replace(/\n{3,}/g, '\n\n');
+  } else {
+    result = result.replace(/[ \t]*\n+/g, '\n');
   }
-  
-  for (var k = 0; k < inlineCodes.length; k++) {
-    result = result.replace('\x00INLINE' + k + '\x00', inlineCodes[k]);
+  result = result.replace(/[ \t]{2,}/g, ' ');
+  result = result.replace(/[ \t]+([.,;:!?])/g, '$1');
+  // Collapse repeats of the same punctuation mark left by removals
+  result = result.replace(/([,;:!?])(?:[ \t]*\1)+/g, '$1');
+  // Orphan hyphen fragments from partial phrase removal (level 3+),
+  // e.g. "well-tested" losing "well" → "-tested" becomes "tested".
+  if (level >= 3) {
+    result = result.replace(/(^|[ \t])-+([A-Za-z])/gm, '$1$2');
+    result = result.replace(/([A-Za-z])-+(?=[ \t]|$)/gm, '$1');
   }
-  
-  // Phase 7: Final trim + basic punctuation cleanup
+  result = result.replace(/^[ \t]+|[ \t]+$/gm, '');
   result = result.trim();
-  result = result.replace(/\s{2,}/g, ' ');
-  result = result.replace(/\s+([.,:;!?])/g, '$1');
-  
-  // Clean up hyphen fragments left after word removal (e.g. well-tested → -tested)
-  result = result.replace(/(^|\s)-[a-zA-Z]+/g, '$1');
-  result = result.replace(/[a-zA-Z]+-(\s|$)/g, '');
-  
-  // Phase 8: Ensure no double punctuation or awkward spacing
-  result = result.replace(/\.\,/g, ',');
-  result = result.replace(/\.\./g, '.');
-  result = result.replace(/\s*,\s*/g, ', ');
-  result = result.replace(/\s*\.\s*/g, '. ');
-  result = result.trim();
-  
-  const compressed = this._countTokens(result);
-  const saved = original - compressed;
-  const percent = original > 0 ? Math.round((saved / original) * 100) : 0;
+
+  // ── Phase 7: Restore protected segments ──
+  // Function replacement avoids `$&`-style patterns inside code
+  // blocks being interpreted by String.replace.
+  result = result.replace(/\x00P(\d+)\x00/g, function (_m, idx) {
+    return preserved[parseInt(idx, 10)];
+  });
+
+  // ── Phase 8: Safety net ──
+  var compressed = this._countTokens(result);
+  if (!result.trim() || compressed >= original) {
+    // Never hand back an empty prompt, and never make it worse.
+    return { compressed: text, stats: makeStats(original, original) };
+  }
 
   return {
     compressed: result,
-    stats: makeStats(original, compressed, saved, percent)
+    stats: makeStats(original, compressed)
   };
 };
+
+// Per-line word filtering + level 3/4 extras. Operates on a single
+// line, so it can never destroy list/paragraph structure.
+function compressLine(line, level, fillerSet) {
+  if (!line.trim()) return '';
+
+  var words = line.split(/[ \t]+/);
+  var filtered = [];
+
+  for (var i = 0; i < words.length; i++) {
+    var w = words[i].replace(/^[^a-zA-Z0-9_#@\x00]+/, '').replace(/[^a-zA-Z0-9_#@\x00]+$/, '').toLowerCase();
+    if (fillerSet[w] === true) continue;
+    filtered.push(words[i]);
+  }
+
+  var out = filtered.join(' ');
+
+  if (level >= 3) {
+    out = out.replace(/\b(?:also please|please also|and also|also and|of the|of a|in the|for the|to the|on the|at the)\b/gi, '');
+    out = out.replace(/\b(?:make sure to|make sure that|be able to|give you|provide you|let you|help you)\b/gi, '');
+    out = out.replace(/\b(?:a lot of|lots of|plenty of|kind of|sort of)\b/gi, '');
+    out = out.replace(/\b(?:with|from|for|of|in|on|at|by|to|and|or|but|not|nor) +(?:with|from|for|of|in|on|at|by|to|and|or|but|not|nor)\b/g, '');
+  }
+
+  if (level >= 4) {
+    out = out.replace(EXTREME_RE, '');
+    // Drop isolated single letters left behind
+    out = out.replace(/(?:^|[ \t])[A-Za-z](?=[ \t]|$)/g, ' ');
+    out = out.replace(/[ \t]{2,}/g, ' ').trim();
+    // Second pass: drop leftover 1-2 char fragments that are not
+    // numbers, code-ish tokens, placeholders or known abbreviations.
+    var finalWords = out.split(/[ \t]+/);
+    var surviving = [];
+    for (var fw = 0; fw < finalWords.length; fw++) {
+      var stripped = finalWords[fw].replace(/^[^a-zA-Z0-9_#@\x00]+/, '').replace(/[^a-zA-Z0-9_#@\x00]+$/, '');
+      if (stripped.length >= 3 ||
+          /[0-9_#@\x00]/.test(stripped) ||
+          SHORTHAND_VALUES[stripped.toLowerCase()] === true ||
+          /^[A-Z]/.test(stripped)) {
+        surviving.push(finalWords[fw]);
+      }
+    }
+    out = surviving.join(' ');
+  }
+
+  return out.replace(/[ \t]{2,}/g, ' ').trim();
+}
 
 // ─── Analyze ─────────────────────────────────────────────────
 TokenSlimCore.prototype.analyze = function (text) {
@@ -461,15 +445,15 @@ TokenSlimCore.prototype.analyze = function (text) {
     return { levels: [], recommendation: 2 };
   }
 
-  const levelData = [
+  var levelData = [
     { level: 1, name: 'Mild' },
     { level: 2, name: 'Normal ⭐' },
     { level: 3, name: 'Aggressive' },
     { level: 4, name: 'Extreme' }
   ];
 
-  const origTokens = this._countTokens(text);
-  const levels = levelData.map(function (ld) {
+  var origTokens = this._countTokens(text);
+  var levels = levelData.map(function (ld) {
     var r = this.compress(text, ld.level);
     return {
       level: ld.level,
@@ -481,7 +465,6 @@ TokenSlimCore.prototype.analyze = function (text) {
     };
   }, this);
 
-  // Recommendation: pick level based on savings and length
   var rec = 2;
   if (origTokens > 300) rec = 3;
   if (origTokens > 500) rec = 4;
@@ -495,7 +478,7 @@ TokenSlimCore.prototype.analyze = function (text) {
 
 // ─── Summarize (quick stats) ────────────────────────────────
 TokenSlimCore.prototype.summarize = function (text, level) {
-  const result = this.compress(text, level || 2);
+  var result = this.compress(text, level || 2);
   return {
     original: result.stats.original,
     compressed: result.stats.compressed,
@@ -505,19 +488,19 @@ TokenSlimCore.prototype.summarize = function (text, level) {
 };
 
 // ─── Token Count Estimation ─────────────────────────────────
+// Rough BPE-style estimate: max(word count, chars / 4). Real
+// tokenizers differ per model; this is intentionally conservative.
 TokenSlimCore.prototype._countTokens = function (text) {
-  if (!text) return 0;
-  // Estimate: max(word_count, char_count/4)
+  if (!text || !text.trim()) return 0;
   var words = text.trim().split(/\s+/).length;
-  var chars = text.length;
-  var charEstimate = Math.ceil(chars / 4);
+  var charEstimate = Math.ceil(text.length / 4);
   return Math.max(words, charEstimate);
 };
 
 // ─── Helpers ────────────────────────────────────────────────
-function makeStats(original, compressed, saved, percent) {
-  saved = saved || (original - compressed);
-  percent = percent || (original > 0 ? Math.round((saved / original) * 100) : 0);
+function makeStats(original, compressed) {
+  var saved = original - compressed;
+  var percent = original > 0 ? Math.round((saved / original) * 100) : 0;
   return {
     original: original,
     compressed: compressed,

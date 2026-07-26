@@ -1,75 +1,9 @@
-/**
- * TokenSlim — Continue.dev Plugin Config
- * =======================================
- * 
- * Installation:
- *   1. Copy this config to ~/.continue/config.json
- *   2. Or merge with your existing config
- *   3. Restart Continue.dev
- * 
- * What it does:
- *   - Context Providers that compress conversation history
- *   - Saves ~40% tokens automatically
- *   - Works with all models (Claude, GPT, CodeLlama, etc.)
- * 
- * File: config.json → Place in ~/.continue/
- */
-
 {
-  "contextProviders": [
-    {
-      "name": "@tokenslim/compress",
-      "params": {
-        "level": 2,
-        "autoDetect": true,
-        "maxContextTokens": 8000,
-        "compressHistory": true,
-        "compressFiles": true
-      }
-    }
-  ],
-
-  "experimental": {
-    "promptCompression": {
-      "enabled": true,
-      "provider": "tokenslim",
-      "level": "normal",
-      "exclude": [
-        "**/*.md",
-        "**/package.json",
-        "**/*.lock"
-      ],
-      "rules": {
-        "compressSystemPrompt": true,
-        "compressUserMessages": true,
-        "compressContextFiles": true,
-        "preserveCodeBlocks": true,
-        "preserveJsonOutput": true
-      }
-    }
-  },
-
   "customCommands": [
     {
       "name": "compress",
-      "description": "Compress current prompt with TokenSlim",
-      "prompt": "Apply TokenSlim compression to the above prompt. Respond ONLY with the compressed version, no explanations. Current tokens: {{{tokens}}}",
-      "params": {
-        "level": 3
-      }
-    },
-    {
-      "name": "compress-stats",
-      "description": "Show compression stats for this session",
-      "prompt": "Calculate token savings for this conversation. Show: original tokens, compressed tokens, total saved, percentage saved using TokenSlim format."
-    }
-  ],
-
-  "slashCommands": [
-    {
-      "name": "compress",
-      "description": "⚡ TokenSlim: Compress your prompt",
-      "prompt": "Compress the following prompt using TokenSlim aggressive mode. Remove filler words, keep technical content, preserve code blocks. Output ONLY the compressed version:\n\n{{{ input }}}"
+      "description": "⚡ TokenSlim: rewrite the selected prompt in compressed form",
+      "prompt": "Compress the following prompt. Remove filler words, pleasantries and hedging. Keep all technical content, code blocks, URLs and numbers exactly as they are. Output ONLY the compressed version, no explanations:\n\n{{{ input }}}"
     }
   ]
 }

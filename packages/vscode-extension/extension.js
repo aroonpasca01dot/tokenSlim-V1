@@ -14,7 +14,20 @@
  */
 
 const vscode = require('vscode');
-const { TokenSlimCore } = require('@tokenslim/core');
+
+// The core engine can live in three places depending on how the
+// extension was installed; try each layout in order.
+let TokenSlimCore;
+const CORE_PATHS = ['@tokenslim/core', './core.js', '../core/index.js'];
+for (const p of CORE_PATHS) {
+  try {
+    ({ TokenSlimCore } = require(p));
+    break;
+  } catch (e) { /* try next layout */ }
+}
+if (!TokenSlimCore) {
+  throw new Error('TokenSlim: core engine not found. Copy packages/core/index.js next to extension.js as core.js');
+}
 
 let statusBarItem;
 let sessionStats = { prompts: 0, tokensSaved: 0 };
@@ -190,7 +203,7 @@ function analyzePrompt(core) {
   panel.appendLine('');
   panel.appendLine('  ─────────────────────────────────────');
   panel.appendLine(`  Original:  ${text.length} chars`);
-  panel.appendLine(`  Words:     ${text.split(/\\s+/).length}`);
+  panel.appendLine(`  Words:     ${text.trim().split(/\s+/).length}`);
   panel.show();
 }
 

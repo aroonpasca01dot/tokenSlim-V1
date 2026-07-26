@@ -1,22 +1,35 @@
 /**
  * TokenSlim — OpenCode Plugin
  * ============================
- * 
- * OpenCode supports custom hooks for prompt preprocessing.
- * This plugin hooks into the prompt pipeline to compress context.
- * 
+ *
+ * Hooks into the prompt pipeline to compress context before it is
+ * sent to the model.
+ *
  * Installation:
- *   1. Copy plugin.js to ~/.opencode/plugins/tokenslim/
- *   2. Add to ~/.opencode/config.json:
+ *   1. mkdir -p ~/.opencode/plugins/tokenslim
+ *   2. cp plugin.js ~/.opencode/plugins/tokenslim/
+ *   3. cp ../core/index.js ~/.opencode/plugins/tokenslim/core.js
+ *   4. Add to ~/.opencode/config.json:
  *      { "plugins": ["tokenslim"] }
- *   3. Restart OpenCode
- * 
- * Compression saves ~30-50% tokens on context windows.
+ *   5. Restart OpenCode
  */
 
 const fs = require('fs');
 const path = require('path');
-const { TokenSlimCore } = require('@tokenslim/core');
+
+// The core engine can live in three places depending on how the
+// plugin was installed; try each layout in order.
+let TokenSlimCore;
+const CORE_PATHS = ['@tokenslim/core', './core.js', '../core/index.js'];
+for (const p of CORE_PATHS) {
+  try {
+    ({ TokenSlimCore } = require(p));
+    break;
+  } catch (e) { /* try next layout */ }
+}
+if (!TokenSlimCore) {
+  throw new Error('TokenSlim: core engine not found. Copy packages/core/index.js next to plugin.js as core.js');
+}
 
 const core = new TokenSlimCore();
 
@@ -24,12 +37,11 @@ const core = new TokenSlimCore();
 let config = {
   enabled: true,
   level: 2,
-  preserveCodeBlocks: true,
-  maxContextTokens: 4096,
+  minLength: 100,
   excludePatterns: []
 };
 
-// Load user config
+// Load user config (~/.opencode/config.json → { "tokenslim": {...} })
 try {
   const configPath = path.join(__dirname, '..', '..', 'config.json');
   if (fs.existsSync(configPath)) {
@@ -47,19 +59,16 @@ try {
  */
 
 function onPrompt(context) {
-  if (!config.enabled) return context;
+  if (!config.enabled || !context) return context;
 
   const { prompt, type } = context;
 
-  // Don't compress short prompts
-  if (prompt.length < 100) return context;
-
-  // Don't compress excluded types
+  if (typeof prompt !== 'string' || prompt.length < config.minLength) return context;
   if (config.excludePatterns.includes(type)) return context;
 
   try {
     const result = core.compress(prompt, config.level);
-    logSavings(prompt, result);
+    logSavings(result);
     return { ...context, prompt: result.compressed };
   } catch (e) {
     console.error('[TokenSlim] Compression failed:', e.message);
@@ -68,14 +77,14 @@ function onPrompt(context) {
 }
 
 function onContextWindow(contexts) {
-  if (!config.enabled) return contexts;
+  if (!config.enabled || !Array.isArray(contexts)) return contexts;
 
   return contexts.map(ctx => {
-    if (!ctx.text || ctx.text.length < 100) return ctx;
-    
+    if (!ctx || typeof ctx.text !== 'string' || ctx.text.length < config.minLength) return ctx;
+
     try {
       const result = core.compress(ctx.text, config.level);
-      logSavings(ctx.text, result, 'Context');
+      logSavings(result, 'Context');
       return { ...ctx, text: result.compressed };
     } catch {
       return ctx;
@@ -83,18 +92,16 @@ function onContextWindow(contexts) {
   });
 }
 
-function logSavings(original, result, label = 'Prompt') {
+function logSavings(result, label = 'Prompt') {
   if (result.stats.percent > 0) {
-    const saved = result.stats.percent;
-    const tokens = result.stats.saved;
-    process.stderr.write(`  ⚡ TokenSlim [${label}]: saved ${saved}% (${tokens} tokens)\n`);
+    process.stderr.write(`  ⚡ TokenSlim [${label}]: saved ${result.stats.percent}% (${result.stats.saved} tokens)\n`);
   }
 }
 
 // Plugin metadata
 module.exports = {
   name: '@tokenslim/opencode',
-  version: '1.0.0',
+  version: '1.1.0',
   hooks: {
     'prompt:preprocess': onPrompt,
     'context:prepare': onContextWindow

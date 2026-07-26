@@ -1,12 +1,18 @@
 {
   "name": "@tokenslim/core",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "TokenSlim Core — AI prompt compression engine. Minify prompts, save tokens, support all coding agents.",
   "main": "index.js",
   "types": "index.d.ts",
   "scripts": {
     "test": "node test.js"
   },
-  "keywords": ["prompt", "compression", "token", "ai", "minify"],
+  "keywords": [
+    "prompt",
+    "compression",
+    "token",
+    "ai",
+    "minify"
+  ],
   "license": "MIT"
 }

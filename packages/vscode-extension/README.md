@@ -22,7 +22,8 @@ code --install-extension tokenslim-1.0.0.vsix
 
 ### From source
 1. Copy `packages/vscode-extension/` to `~/.vscode/extensions/tokenslim/`
-2. Restart VSCode
+2. Copy the core engine into it: `cp packages/core/index.js ~/.vscode/extensions/tokenslim/core.js`
+3. Restart VSCode
 
 ## Usage
 
@@ -36,5 +37,4 @@ code --install-extension tokenslim-1.0.0.vsix
 Settings → Search "TokenSlim":
 
 - `tokenslim.level` — Default compression level (1-4)
-- `tokenslim.autoCompress` — Auto-compress on copy
 - `tokenslim.showNotifications` — Show savings popup
