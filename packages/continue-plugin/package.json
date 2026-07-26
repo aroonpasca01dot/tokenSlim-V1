@@ -1,9 +1,14 @@
 {
   "name": "@tokenslim/continue-plugin",
-  "version": "1.0.0",
-  "description": "TokenSlim for Continue.dev — Automatically compress context prompts to save tokens.",
+  "version": "1.1.0",
+  "description": "TokenSlim for Continue.dev — adds a /compress custom command that rewrites prompts in compressed form.",
   "main": "config.json",
   "scripts": {},
-  "keywords": ["continue", "continue-dev", "prompt", "compression"],
+  "keywords": [
+    "continue",
+    "continue-dev",
+    "prompt",
+    "compression"
+  ],
   "license": "MIT"
 }

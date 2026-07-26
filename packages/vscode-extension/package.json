@@ -2,12 +2,12 @@
   "name": "tokenslim",
   "displayName": "TokenSlim — AI Prompt Compressor",
   "description": "⚡ Compress AI prompts instantly. Save tokens, save money. Supports Claude, GPT, Gemini & all coding agents.",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "publisher": "aroonpasca01dot",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/aroonpasca01dot/TokenSlim"
+    "url": "https://github.com/aroonpasca01dot/tokenSlim-V1"
   },
   "engines": {
     "vscode": "^1.80.0"
@@ -28,12 +28,6 @@
     "antigravity"
   ],
   "icon": "icon.png",
-  "activationEvents": [
-    "onCommand:tokenslim.compress",
-    "onCommand:tokenslim.compressSelection",
-    "onCommand:tokenslim.analyze",
-    "onCommand:tokenslim.showStats"
-  ],
   "main": "./extension.js",
   "contributes": {
     "commands": [
@@ -76,19 +70,19 @@
         "tokenslim.level": {
           "type": "number",
           "default": 2,
-          "enum": [1, 2, 3, 4],
+          "enum": [
+            1,
+            2,
+            3,
+            4
+          ],
           "enumDescriptions": [
-            "Mild (~20% savings) — Safe, preserves readability",
-            "Normal (~40% savings) — Balanced, recommended",
-            "Aggressive (~60% savings) — Max for long prompts",
-            "Extreme (~80% savings) — Drastic shortening"
+            "Mild (~5-15% savings) — Safest, preserves wording",
+            "Normal (~10-25% savings) — Balanced, recommended",
+            "Aggressive (~25-45% savings) — Max for long prompts",
+            "Extreme (~40-60% savings) — Drastic shortening"
           ],
           "description": "Default compression level"
-        },
-        "tokenslim.autoCompress": {
-          "type": "boolean",
-          "default": false,
-          "description": "Auto-compress clipboard text when copying"
         },
         "tokenslim.showNotifications": {
           "type": "boolean",

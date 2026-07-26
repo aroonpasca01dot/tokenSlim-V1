@@ -1,17 +1,20 @@
 // TypeScript declarations for TokenSlim Core
-interface CompressionStats {
+
+export type CompressionLevel = 1 | 2 | 3 | 4;
+
+export interface CompressionStats {
   original: number;
   compressed: number;
   saved: number;
   percent: number;
 }
 
-interface CompressResult {
+export interface CompressResult {
   compressed: string;
   stats: CompressionStats;
 }
 
-interface LevelAnalysis {
+export interface LevelAnalysis {
   name: string;
   level: number;
   original: number;
@@ -20,12 +23,21 @@ interface LevelAnalysis {
   percent: number;
 }
 
-interface AnalyzeResult {
+export interface AnalyzeResult {
   levels: LevelAnalysis[];
   recommendation: number;
 }
 
+export interface SummarizeResult {
+  original: number;
+  compressed: number;
+  percent: number;
+  saved: number;
+}
+
 export class TokenSlimCore {
-  compress(text: string, level?: number): CompressResult;
+  static VERSION: string;
+  compress(text: string, level?: CompressionLevel): CompressResult;
   analyze(text: string): AnalyzeResult;
+  summarize(text: string, level?: CompressionLevel): SummarizeResult;
 }

@@ -1,15 +1,15 @@
 {
   "name": "tokenslim",
-  "version": "1.0.0",
-  "description": "⚡ AI Prompt Compressor — Hemat token AI hingga 70%. Support VSCode, Continue.dev, OpenCode, Antigravity, CLI.",
+  "version": "1.1.0",
+  "description": "⚡ AI Prompt Compressor — save up to 60% of tokens on verbose AI prompts. Supports VSCode, Continue.dev, OpenCode, Antigravity, and a CLI.",
   "private": true,
   "workspaces": [
     "packages/*"
   ],
   "scripts": {
-    "build": "npm run build --workspaces",
-    "test": "npm run test --workspaces",
-    "demo": "cd demo && npx live-server --port=3000"
+    "build": "node scripts/build-demo.js",
+    "test": "npm run test --workspaces --if-present",
+    "demo": "npx --yes live-server demo --port=3000"
   },
   "keywords": [
     "ai",
@@ -28,10 +28,10 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/aroonpasca01dot/TokenSlim.git"
+    "url": "https://github.com/aroonpasca01dot/tokenSlim-V1.git"
   },
   "bugs": {
-    "url": "https://github.com/aroonpasca01dot/TokenSlim/issues"
+    "url": "https://github.com/aroonpasca01dot/tokenSlim-V1/issues"
   },
-  "homepage": "https://github.com/aroonpasca01dot/TokenSlim"
+  "homepage": "https://github.com/aroonpasca01dot/tokenSlim-V1"
 }

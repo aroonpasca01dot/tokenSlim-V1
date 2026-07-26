@@ -1,46 +1,53 @@
 #!/usr/bin/env node
 
 /**
- * TokenSlim CLI v1.0.0
+ * TokenSlim CLI v1.1.0
  * =====================
  * Compress AI prompts from terminal.
- * 
+ *
  * Usage:
  *   tokenslim "your long prompt here"
  *   echo "long prompt" | tokenslim
  *   tokenslim --file prompt.txt
  *   tokenslim --level 3 "prompt"
  *   tokenslim --analyze "prompt"
- *   tokenslim --pipe              # read stdin
- * 
+ *
  * Options:
  *   -l, --level <1-4>  Compression level (default: 2)
  *   -a, --analyze      Show analysis for all levels
  *   -f, --file <path>  Read from file
  *   -s, --stats        Show token statistics
- *   -r, --raw          Raw output (no formatting)
+ *   -r, --raw          Raw output only (no stats, no progress bar)
  *   -v, --version      Show version
  *   -h, --help         Show help
  */
 
 const fs = require('fs');
-const path = require('path');
-const { TokenSlimCore } = require('../core/index.js');
+
+let TokenSlimCore;
+try {
+  // Published package layout
+  ({ TokenSlimCore } = require('@tokenslim/core'));
+} catch (e) {
+  // Monorepo layout
+  ({ TokenSlimCore } = require('../core/index.js'));
+}
 
 const core = new TokenSlimCore();
 const pkg = require('./package.json');
 
 const LEVEL_NAMES = {
-  1: 'Mild (20% savings)',
-  2: 'Normal (40% savings) ⭐',
-  3: 'Aggressive (60% savings)',
-  4: 'Extreme (80% savings)'
+  1: 'Mild (safest)',
+  2: 'Normal ⭐',
+  3: 'Aggressive',
+  4: 'Extreme'
 };
 
+/** Print CLI usage help. */
 function showHelp() {
   console.log(`
 ╔══════════════════════════════════════════╗
-║        TokenSlim CLI v${pkg.version}          ║
+║        TokenSlim CLI v${pkg.version}             ║
 ║     ⚡ AI Prompt Compressor              ║
 ╚══════════════════════════════════════════╝
 
@@ -54,15 +61,15 @@ Options:
   -a, --analyze      Show analysis for all levels
   -f, --file <path>  Read from file instead of stdin/args
   -s, --stats        Show token statistics
-  -r, --raw          Raw output (no formatting)
+  -r, --raw          Raw output only (no stats, no progress bar)
   -v, --version      Show version
   -h, --help         Show this help
 
-Compression Levels:
-  1 = Mild     ~20% — Safe, preserves readability
-  2 = Normal   ~40% — Balanced (recommended)
-  3 = Aggressive ~60% — Max savings for long prompts
-  4 = Extreme  ~80% — Drastic (for internal/context)
+Compression Levels (typical savings on verbose prompts):
+  1 = Mild       ~5-15%  — Safest, preserves wording
+  2 = Normal     ~10-25% — Balanced (recommended)
+  3 = Aggressive ~25-45% — Max savings for long prompts
+  4 = Extreme    ~40-60% — Drastic (for internal/context text)
 
 Examples:
   $ tokenslim "Generate a Python function that sorts numbers"
@@ -71,72 +78,69 @@ Examples:
 `);
 }
 
+/** Print the CLI version. */
 function showVersion() {
   console.log(`TokenSlim CLI v${pkg.version}`);
 }
 
+/**
+ * Print token statistics for a compression result.
+ * @param {{original:number,compressed:number,saved:number,percent:number}} stats
+ * @param {number} level compression level used
+ */
 function printStats(stats, level) {
   const label = LEVEL_NAMES[level] || `Level ${level}`;
   console.log('');
   console.log(`  📊 Level ${level}: ${label}`);
-  console.log(`     Original:   ${String(stats.original).padStart(5)} tokens`);
-  console.log(`     Compressed: ${String(stats.compressed).padStart(5)} tokens`);
+  console.log(`     Original:   ${String(stats.original).padStart(5)} tokens (est.)`);
+  console.log(`     Compressed: ${String(stats.compressed).padStart(5)} tokens (est.)`);
   console.log(`     Saved:      ${String(stats.saved).padStart(5)} tokens (${stats.percent}%)`);
   console.log('');
 }
 
-function printResult(result, level, showStats) {
-  if (showStats) {
-    printStats(result.stats, level);
-  }
-  console.log(result.compressed);
-}
-
+/** Parse argv, resolve the input source, and dispatch processing. */
 function main() {
   const args = process.argv.slice(2);
-  
-  if (args.length === 0) {
-    // Check if piped input
-    if (!process.stdin.isTTY) {
-      return readStdin();
-    }
-    showHelp();
-    return;
-  }
 
-  // Parse flags
-  let level = 2;
-  let showStats = false;
-  let analyze = false;
-  let filePath = null;
-  let textArgs = [];
+  const opts = {
+    level: 2,
+    showStats: false,
+    analyze: false,
+    raw: false,
+    filePath: null,
+    textArgs: []
+  };
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
     switch (arg) {
       case '-l':
       case '--level':
-        level = parseInt(args[++i], 10);
-        if (level < 1 || level > 4 || isNaN(level)) {
+        opts.level = parseInt(args[++i], 10);
+        if (isNaN(opts.level) || opts.level < 1 || opts.level > 4) {
           console.error('❌ Level must be 1-4');
           process.exit(1);
         }
         break;
       case '-s':
       case '--stats':
-        showStats = true;
+        opts.showStats = true;
         break;
       case '-a':
       case '--analyze':
-        analyze = true;
+        opts.analyze = true;
         break;
       case '-f':
       case '--file':
-        filePath = args[++i];
+        opts.filePath = args[++i];
+        if (!opts.filePath) {
+          console.error('❌ --file requires a path');
+          process.exit(1);
+        }
         break;
       case '-r':
       case '--raw':
-        // Raw mode handled by not printing formatting
+        opts.raw = true;
         break;
       case '-v':
       case '--version':
@@ -147,54 +151,63 @@ function main() {
         showHelp();
         return;
       default:
-        if (arg.startsWith('-')) {
+        if (arg.startsWith('-') && arg !== '-') {
           console.error(`❌ Unknown option: ${arg}`);
           process.exit(1);
         }
-        textArgs.push(arg);
+        opts.textArgs.push(arg);
     }
   }
 
-  let text;
-
-  if (filePath) {
+  if (opts.filePath) {
+    let text;
     try {
-      text = fs.readFileSync(filePath, 'utf-8');
+      text = fs.readFileSync(opts.filePath, 'utf-8');
     } catch (e) {
-      console.error(`❌ Cannot read file: ${filePath}`);
+      console.error(`❌ Cannot read file: ${opts.filePath}`);
       process.exit(1);
     }
-  } else if (textArgs.length > 0) {
-    text = textArgs.join(' ');
+    processText(text, opts);
+  } else if (opts.textArgs.length > 0) {
+    processText(opts.textArgs.join(' '), opts);
   } else if (!process.stdin.isTTY) {
-    return readStdin(level, showStats);
+    readStdin(opts);
+  } else if (args.length === 0) {
+    showHelp();
   } else {
     console.error('❌ No input text provided');
     console.error('   Usage: tokenslim "your prompt here"');
     console.error('   Or pipe: echo "prompt" | tokenslim');
     process.exit(1);
   }
-
-  processText(text, level, showStats, analyze);
 }
 
-function readStdin(level = 2, showStats = false) {
+/**
+ * Buffer stdin fully, then process it with the parsed options.
+ * @param {{level:number,showStats:boolean,analyze:boolean,raw:boolean}} opts
+ */
+function readStdin(opts) {
   let buffer = '';
   process.stdin.on('data', (chunk) => {
     buffer += chunk.toString();
   });
   process.stdin.on('end', () => {
-    processText(buffer.trim(), level, showStats);
+    processText(buffer.trim(), opts);
   });
 }
 
-function processText(text, level, showStats, analyze) {
+/**
+ * Compress (or analyze) the text and print results per options.
+ * @param {string} text input prompt
+ * @param {{level:number,showStats:boolean,analyze:boolean,raw:boolean}} opts
+ */
+function processText(text, opts) {
   if (!text || text.length === 0) {
     console.error('❌ Empty input');
     process.exit(1);
   }
 
-  if (analyze) {
+  if (opts.analyze) {
     const analysis = core.analyze(text);
     console.log('\n  📈 TokenSlim Analysis');
     console.log('  ─────────────────────');
@@ -203,7 +216,7 @@ function processText(text, level, showStats, analyze) {
     });
     console.log(`  ─────────────────────`);
     console.log(`  ✅ Recommended: Level ${analysis.recommendation}\n`);
-    
+
     const result = core.compress(text, analysis.recommendation);
     console.log('  Optimized output:');
     console.log('');
@@ -212,16 +225,30 @@ function processText(text, level, showStats, analyze) {
     return;
   }
 
-  const result = core.compress(text, level);
-  printResult(result, level, showStats);
+  const result = core.compress(text, opts.level);
 
-  if (!showStats) {
-    // Print mini stats
+  if (opts.raw) {
+    console.log(result.compressed);
+    return;
+  }
+
+  if (opts.showStats) {
+    printStats(result.stats, opts.level);
+  }
+  console.log(result.compressed);
+
+  if (!opts.showStats) {
     const bar = createBar(result.stats.percent, 20);
     process.stderr.write(`  💰 Saved ${result.stats.percent}% (${result.stats.saved} tokens) ${bar}\n`);
   }
 }
 
+/**
+ * Render a textual progress bar.
+ * @param {number} percent 0-100
+ * @param {number} width bar width in characters
+ * @returns {string}
+ */
 function createBar(percent, width) {
   const filled = Math.round((percent / 100) * width);
   const empty = width - filled;
