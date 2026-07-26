@@ -1,6 +1,6 @@
 # ⚡ TokenSlim
 
-### AI Prompt Compressor — save 10-60% of tokens on verbose prompts
+## AI Prompt Compressor — save 10-60% of tokens on verbose prompts
 
 TokenSlim removes filler words, pleasantries and hedging from your AI prompts while **protecting what matters**: code blocks, inline code, URLs, emails and numbers pass through byte-for-byte untouched. Works with **Claude, GPT, Gemini, Continue.dev, OpenCode, Antigravity, VSCode**, and any AI tool.
 

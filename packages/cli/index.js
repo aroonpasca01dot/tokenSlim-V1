@@ -43,6 +43,7 @@ const LEVEL_NAMES = {
   4: 'Extreme'
 };
 
+/** Print CLI usage help. */
 function showHelp() {
   console.log(`
 ╔══════════════════════════════════════════╗
@@ -77,10 +78,16 @@ Examples:
 `);
 }
 
+/** Print the CLI version. */
 function showVersion() {
   console.log(`TokenSlim CLI v${pkg.version}`);
 }
 
+/**
+ * Print token statistics for a compression result.
+ * @param {{original:number,compressed:number,saved:number,percent:number}} stats
+ * @param {number} level compression level used
+ */
 function printStats(stats, level) {
   const label = LEVEL_NAMES[level] || `Level ${level}`;
   console.log('');
@@ -91,6 +98,7 @@ function printStats(stats, level) {
   console.log('');
 }
 
+/** Parse argv, resolve the input source, and dispatch processing. */
 function main() {
   const args = process.argv.slice(2);
 
@@ -174,6 +182,10 @@ function main() {
   }
 }
 
+/**
+ * Buffer stdin fully, then process it with the parsed options.
+ * @param {{level:number,showStats:boolean,analyze:boolean,raw:boolean}} opts
+ */
 function readStdin(opts) {
   let buffer = '';
   process.stdin.on('data', (chunk) => {
@@ -184,6 +196,11 @@ function readStdin(opts) {
   });
 }
 
+/**
+ * Compress (or analyze) the text and print results per options.
+ * @param {string} text input prompt
+ * @param {{level:number,showStats:boolean,analyze:boolean,raw:boolean}} opts
+ */
 function processText(text, opts) {
   if (!text || text.length === 0) {
     console.error('❌ Empty input');
@@ -226,6 +243,12 @@ function processText(text, opts) {
   }
 }
 
+/**
+ * Render a textual progress bar.
+ * @param {number} percent 0-100
+ * @param {number} width bar width in characters
+ * @returns {string}
+ */
 function createBar(percent, width) {
   const filled = Math.round((percent / 100) * width);
   const empty = width - filled;

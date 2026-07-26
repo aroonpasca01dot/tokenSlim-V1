@@ -76,6 +76,11 @@ function onPrompt(context) {
   }
 }
 
+/**
+ * context:prepare hook — compress qualifying context entries.
+ * @param {Array<{text:string}>} contexts
+ * @returns {Array<object>}
+ */
 function onContextWindow(contexts) {
   if (!config.enabled || !Array.isArray(contexts)) return contexts;
 
@@ -92,6 +97,7 @@ function onContextWindow(contexts) {
   });
 }
 
+/** Log savings to stderr when compression achieved anything. */
 function logSavings(result, label = 'Prompt') {
   if (result.stats.percent > 0) {
     process.stderr.write(`  ⚡ TokenSlim [${label}]: saved ${result.stats.percent}% (${result.stats.saved} tokens)\n`);

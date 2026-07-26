@@ -1,7 +1,7 @@
 {
   "name": "@tokenslim/opencode",
   "version": "1.1.0",
-  "description": "TokenSlim OpenCode plugin — compress prompts automatically. Saves 30-50% tokens.",
+  "description": "TokenSlim OpenCode plugin — automatically compress prompts and context windows to save tokens.",
   "main": "plugin.js",
   "scripts": {},
   "dependencies": {

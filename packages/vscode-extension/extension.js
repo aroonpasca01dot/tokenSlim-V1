@@ -90,6 +90,7 @@ function deactivate() {
 
 // ─── Command Implementations ──────────────────────────────────────────────
 
+/** Read the extension settings. @returns {{level:number,showNotifications:boolean}} */
 function getConfig() {
   const config = vscode.workspace.getConfiguration('tokenslim');
   return {
@@ -98,6 +99,7 @@ function getConfig() {
   };
 }
 
+/** Compress the entire active editor content in place. */
 function compressEditor(core) {
   const editor = vscode.window.activeTextEditor;
   if (!editor) {
@@ -133,6 +135,7 @@ function compressEditor(core) {
   }
 }
 
+/** Compress the current selection in place. */
 function compressSelection(core) {
   const editor = vscode.window.activeTextEditor;
   if (!editor) {
@@ -166,6 +169,7 @@ function compressSelection(core) {
   }
 }
 
+/** Show an all-levels token analysis for the selection or document. */
 function analyzePrompt(core) {
   const editor = vscode.window.activeTextEditor;
   if (!editor) {
@@ -207,6 +211,7 @@ function analyzePrompt(core) {
   panel.show();
 }
 
+/** Show cumulative session savings in an output channel. */
 function showStats() {
   const panel = vscode.window.createOutputChannel('TokenSlim Stats');
   panel.clear();
@@ -228,17 +233,25 @@ function showStats() {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────
 
+/** Accumulate a compression result into the session stats. */
 function updateStats(result) {
   sessionStats.prompts++;
   sessionStats.tokensSaved += result.stats.saved;
 }
 
+/** Refresh the status bar item with the running savings total. */
 function updateStatusBar() {
   if (statusBarItem) {
     statusBarItem.text = `⚡ TokenSlim (${sessionStats.tokensSaved} saved)`;
   }
 }
 
+/**
+ * Render a textual progress bar.
+ * @param {number} percent 0-100
+ * @param {number} width bar width in characters
+ * @returns {string}
+ */
 function createBar(percent, width) {
   const filled = Math.round((percent / 100) * width);
   const empty = width - filled;

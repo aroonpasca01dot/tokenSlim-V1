@@ -41,5 +41,14 @@ const updated =
   '\n' + coreSource.trimEnd() + '\n' +
   demo.slice(endIdx);
 
+if (process.argv.includes('--check')) {
+  if (updated !== demo) {
+    console.error('❌ demo/index.html is out of sync with packages/core/index.js. Run: node scripts/build-demo.js');
+    process.exit(1);
+  }
+  console.log('✅ demo/index.html is in sync with the core engine');
+  process.exit(0);
+}
+
 fs.writeFileSync(DEMO, updated);
 console.log('✅ demo/index.html updated with core engine (' + coreSource.length + ' bytes)');

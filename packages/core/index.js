@@ -111,6 +111,12 @@ var SHORTHAND_TIGHT = {
   'string': 'str'
 };
 
+/**
+ * Compile a shorthand map into a single alternation regex plus a
+ * lookup table, so each tier is applied in one pass.
+ * @param {Object.<string,string>} map word → abbreviation
+ * @returns {{re: RegExp, map: Object.<string,string>}}
+ */
 function buildShorthandRule(map) {
   var keys = Object.keys(map).sort(function (a, b) { return b.length - a.length; });
   return {
@@ -121,6 +127,26 @@ function buildShorthandRule(map) {
 
 var SHORTHAND_SAFE_RULE = buildShorthandRule(SHORTHAND_SAFE);
 var SHORTHAND_TIGHT_RULE = buildShorthandRule(SHORTHAND_TIGHT);
+
+/**
+ * Look up the abbreviation for a matched word, preserving the
+ * original capitalization ("Configuration" → "Config", "AUTH" style
+ * all-caps stays all-caps).
+ * @param {string} match the matched word as it appeared in the text
+ * @param {Object.<string,string>} map word → abbreviation
+ * @returns {string} the abbreviation, case-matched to the input
+ */
+function shorthandFor(match, map) {
+  var repl = map[match.toLowerCase()];
+  if (match.length > 1 && match === match.toUpperCase()) {
+    return repl.toUpperCase();
+  }
+  var first = match.charAt(0);
+  if (first !== first.toLowerCase()) {
+    return repl.charAt(0).toUpperCase() + repl.slice(1);
+  }
+  return repl;
+}
 
 // Abbreviations we must keep in the extreme-level short-word sweep.
 var SHORTHAND_VALUES = (function () {
@@ -183,6 +209,11 @@ var FILLERS_EXTREME_LIST = FILLERS_AGGRESSIVE_LIST.concat([
   'every', 'each', 'any', 'all', 'some', 'both'
 ]);
 
+/**
+ * Build a plain-object set from a word list for O(1) membership tests.
+ * @param {string[]} list
+ * @returns {Object.<string,boolean>}
+ */
 function toSet(list) {
   var s = {};
   for (var i = 0; i < list.length; i++) s[list[i]] = true;
@@ -247,13 +278,14 @@ var REDUNDANT_PHRASES_AGGRESSIVE = [
   { pattern: /\bin this (?:case|scenario|situation|context)\b/gi, replacement: '' }
 ];
 
-// Extreme-level stop word sweep (level 4 only).
+// Extreme-level stop word sweep (level 4 only). Negations (not, no,
+// nor, never) are deliberately excluded — dropping them inverts meaning.
 var EXTREME_WORDS = [
-  'the','a','an','in','on','at','to','for','of','by','with','and','or','but','not','nor',
+  'the','a','an','in','on','at','to','for','of','by','with','and','or','but',
   'as','be','is','was','do','it','its','this','that','these','those','are','has','have',
   'had','did','does','can','may','will','would','could','should','might','shall','all',
   'any','some','each','every','very','just','also','too','now','then','here','there',
-  'so','yet','if','than','no','yes','oh','ah','well','up','down','out','off','over',
+  'so','yet','if','than','yes','oh','ah','well','up','down','out','off','over',
   'under','into','upon','about','after','before','between','through','during','without',
   'within','along','among','across','behind','above','below','beneath','beside',
   'am','been','being','having','doing','getting','making','using','taking','giving',
@@ -268,12 +300,17 @@ var EXTREME_WORDS = [
   'found','show','shows','showed','come','comes','came','look','looks','looked',
   'go','goes','went','know','knows','knew','think','thinks','thought','say','says',
   'said','tell','tells','told','help','helps','helped',
-  'always','never','often','usually','sometimes','rarely','seldom',
+  'always','often','usually','sometimes','rarely','seldom',
   'try','tries','tried','provide','provides','provided','allow','allows','allowed'
 ];
 var EXTREME_RE = new RegExp('\\b(?:' + EXTREME_WORDS.join('|') + ')\\b', 'gi');
 
 // ─── TokenSlimCore ───────────────────────────────────────────
+/**
+ * Prompt compression engine. Stateless — one instance can be reused
+ * for any number of compress/analyze calls.
+ * @constructor
+ */
 function TokenSlimCore() {
   if (!(this instanceof TokenSlimCore)) {
     return new TokenSlimCore();
@@ -282,6 +319,14 @@ function TokenSlimCore() {
 
 TokenSlimCore.VERSION = VERSION;
 
+/**
+ * Compress a prompt at the given level (1=Mild … 4=Extreme).
+ * Code blocks, inline code, URLs and emails pass through unchanged;
+ * output is never empty and never longer than the input.
+ * @param {string} text prompt to compress
+ * @param {number} [level=2] compression level, clamped to 1-4
+ * @returns {{compressed: string, stats: {original: number, compressed: number, saved: number, percent: number}}}
+ */
 TokenSlimCore.prototype.compress = function (text, level) {
   if (text == null || typeof text !== 'string') return { compressed: text, stats: makeStats(0, 0) };
   if (!text.trim()) return { compressed: text, stats: makeStats(0, 0) };
@@ -333,12 +378,12 @@ TokenSlimCore.prototype.compress = function (text, level) {
   // Level 1 applies none (Mild preserves the original wording).
   if (level >= 2) {
     result = result.replace(SHORTHAND_SAFE_RULE.re, function (m) {
-      return SHORTHAND_SAFE_RULE.map[m.toLowerCase()];
+      return shorthandFor(m, SHORTHAND_SAFE_RULE.map);
     });
   }
   if (level >= 3) {
     result = result.replace(SHORTHAND_TIGHT_RULE.re, function (m) {
-      return SHORTHAND_TIGHT_RULE.map[m.toLowerCase()];
+      return shorthandFor(m, SHORTHAND_TIGHT_RULE.map);
     });
   }
 
@@ -392,8 +437,14 @@ TokenSlimCore.prototype.compress = function (text, level) {
   };
 };
 
-// Per-line word filtering + level 3/4 extras. Operates on a single
-// line, so it can never destroy list/paragraph structure.
+/**
+ * Per-line word filtering + level 3/4 extras. Operates on a single
+ * line, so it can never destroy list/paragraph structure.
+ * @param {string} line single line of already-protected text
+ * @param {number} level compression level 1-4
+ * @param {Object.<string,boolean>} fillerSet filler words for this level
+ * @returns {string} the compressed line
+ */
 function compressLine(line, level, fillerSet) {
   if (!line.trim()) return '';
 
@@ -412,7 +463,7 @@ function compressLine(line, level, fillerSet) {
     out = out.replace(/\b(?:also please|please also|and also|also and|of the|of a|in the|for the|to the|on the|at the)\b/gi, '');
     out = out.replace(/\b(?:make sure to|make sure that|be able to|give you|provide you|let you|help you)\b/gi, '');
     out = out.replace(/\b(?:a lot of|lots of|plenty of|kind of|sort of)\b/gi, '');
-    out = out.replace(/\b(?:with|from|for|of|in|on|at|by|to|and|or|but|not|nor) +(?:with|from|for|of|in|on|at|by|to|and|or|but|not|nor)\b/g, '');
+    out = out.replace(/\b(?:with|from|for|of|in|on|at|by|to|and|or|but) +(?:with|from|for|of|in|on|at|by|to|and|or|but)\b/g, '');
   }
 
   if (level >= 4) {
@@ -429,6 +480,7 @@ function compressLine(line, level, fillerSet) {
       if (stripped.length >= 3 ||
           /[0-9_#@\x00]/.test(stripped) ||
           SHORTHAND_VALUES[stripped.toLowerCase()] === true ||
+          stripped.toLowerCase() === 'no' ||
           /^[A-Z]/.test(stripped)) {
         surviving.push(finalWords[fw]);
       }
@@ -440,6 +492,12 @@ function compressLine(line, level, fillerSet) {
 }
 
 // ─── Analyze ─────────────────────────────────────────────────
+/**
+ * Compress the text at all four levels and recommend one based on
+ * the prompt's estimated length.
+ * @param {string} text prompt to analyze
+ * @returns {{levels: Array<{level: number, name: string, original: number, compressed: number, saved: number, percent: number}>, recommendation: number}}
+ */
 TokenSlimCore.prototype.analyze = function (text) {
   if (!text || typeof text !== 'string') {
     return { levels: [], recommendation: 2 };
@@ -477,6 +535,12 @@ TokenSlimCore.prototype.analyze = function (text) {
 };
 
 // ─── Summarize (quick stats) ────────────────────────────────
+/**
+ * Compress and return only the token statistics.
+ * @param {string} text prompt to compress
+ * @param {number} [level=2] compression level 1-4
+ * @returns {{original: number, compressed: number, percent: number, saved: number}}
+ */
 TokenSlimCore.prototype.summarize = function (text, level) {
   var result = this.compress(text, level || 2);
   return {
@@ -488,8 +552,12 @@ TokenSlimCore.prototype.summarize = function (text, level) {
 };
 
 // ─── Token Count Estimation ─────────────────────────────────
-// Rough BPE-style estimate: max(word count, chars / 4). Real
-// tokenizers differ per model; this is intentionally conservative.
+/**
+ * Rough BPE-style token estimate: max(word count, chars / 4). Real
+ * tokenizers differ per model; this is intentionally conservative.
+ * @param {string} text
+ * @returns {number} estimated token count
+ */
 TokenSlimCore.prototype._countTokens = function (text) {
   if (!text || !text.trim()) return 0;
   var words = text.trim().split(/\s+/).length;
@@ -498,6 +566,12 @@ TokenSlimCore.prototype._countTokens = function (text) {
 };
 
 // ─── Helpers ────────────────────────────────────────────────
+/**
+ * Build the stats object returned alongside every compression.
+ * @param {number} original estimated tokens before compression
+ * @param {number} compressed estimated tokens after compression
+ * @returns {{original: number, compressed: number, saved: number, percent: number}}
+ */
 function makeStats(original, compressed) {
   var saved = original - compressed;
   var percent = original > 0 ? Math.round((saved / original) * 100) : 0;

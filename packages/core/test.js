@@ -49,12 +49,10 @@ test('default level is 2 (normal)', () => {
 });
 
 test('invalid level values are clamped', () => {
-  const r0 = core.compress('Please generate the code now, thanks a lot!', 0);
-  const r9 = core.compress('Please generate the code now, thanks a lot!', 9);
-  const rx = core.compress('Please generate the code now, thanks a lot!', 'x');
-  assert(typeof r0.compressed === 'string', 'Level 0 should clamp to 1');
-  assert(typeof r9.compressed === 'string', 'Level 9 should clamp to 4');
-  assert(typeof rx.compressed === 'string', 'Non-numeric level should default');
+  const t = 'Please generate the code now, thanks a lot!';
+  assert(core.compress(t, 0).compressed === core.compress(t, 1).compressed, 'Level 0 should clamp to 1');
+  assert(core.compress(t, 9).compressed === core.compress(t, 4).compressed, 'Level 9 should clamp to 4');
+  assert(core.compress(t, 'x').compressed === core.compress(t, 2).compressed, 'Non-numeric level should default to 2');
 });
 
 // ─── Level semantics ─────────────────────────────────────────
@@ -182,6 +180,23 @@ test('line structure preserved at level 2', () => {
 test('paragraph breaks kept at level 2', () => {
   const r = core.compress('First paragraph about the app.\n\nSecond paragraph about the tests.', 2);
   assert(r.compressed.includes('\n\n'), 'Blank line must survive: ' + JSON.stringify(r.compressed));
+});
+
+test('negations survive levels 3 and 4', () => {
+  const t = 'Do not delete the database, there is no backup and never skip validation';
+  for (const lvl of [3, 4]) {
+    const r = core.compress(t, lvl);
+    const low = r.compressed.toLowerCase();
+    assert(/\bnot\b/.test(low), `L${lvl} must keep "not": ` + r.compressed);
+    assert(/\bno\b/.test(low), `L${lvl} must keep "no": ` + r.compressed);
+    assert(/\bnever\b/.test(low), `L${lvl} must keep "never": ` + r.compressed);
+  }
+});
+
+test('shorthand preserves capitalization', () => {
+  const r = core.compress('Configuration values matter. The configuration is shared.', 2);
+  assert(r.compressed.includes('Config'), 'Sentence-start keeps capital: ' + r.compressed);
+  assert(r.compressed.includes(' config '), 'Mid-sentence stays lowercase: ' + r.compressed);
 });
 
 // ─── Safety guarantees ──────────────────────────────────────

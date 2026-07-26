@@ -32,11 +32,22 @@ let config = {
   excludePatterns: []
 };
 
+/**
+ * Merge runtime configuration overrides.
+ * @param {object} overrides partial config
+ * @returns {object} the effective config
+ */
 function configure(overrides) {
   config = { ...config, ...overrides };
   return config;
 }
 
+/**
+ * Compress a prompt string if it qualifies.
+ * @param {string} text prompt text
+ * @param {{level?:number}} [opts]
+ * @returns {string} compressed text (or the input unchanged)
+ */
 function compress(text, opts = {}) {
   if (!config.enabled || typeof text !== 'string' || text.length < config.minLength) return text;
   const level = opts.level || config.level;
@@ -51,6 +62,11 @@ function compress(text, opts = {}) {
   }
 }
 
+/**
+ * prompt:preprocess hook — compress qualifying prompts.
+ * @param {{prompt:string,type:string}} context
+ * @returns {object} context with compressed prompt
+ */
 function onPrompt(context) {
   if (!config.enabled || !context) return context;
   const { prompt, type } = context;
@@ -64,10 +80,15 @@ function onPrompt(context) {
   }
 }
 
+/**
+ * context:prepare hook — compress qualifying context entries.
+ * @param {Array<{text:string}>} contexts
+ * @returns {Array<object>}
+ */
 function onContextWindow(contexts) {
   if (!config.enabled || !Array.isArray(contexts)) return contexts;
   return contexts.map(ctx => {
-    if (!ctx || typeof ctx.text !== 'string' || ctx.text.length < 100) return ctx;
+    if (!ctx || typeof ctx.text !== 'string' || ctx.text.length < config.minLength) return ctx;
     try {
       const result = core.compress(ctx.text, config.level);
       return { ...ctx, text: result.compressed };
